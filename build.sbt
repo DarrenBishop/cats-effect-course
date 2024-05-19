@@ -43,7 +43,8 @@ lazy val `cats-effect-course` = (project in file("."))
   )
   .aggregate(
     common,
-    `m1-introduction`
+    `m1-introduction`,
+    `m2-effects-and-io`
   )
 
 lazy val common = project
@@ -51,8 +52,13 @@ lazy val common = project
     scalacOptions ++= scalacOptionsTask.value
   )
 
-
 lazy val `m1-introduction` = project
+  .dependsOn(common)
+  .settings(
+    scalacOptions ++= scalacOptionsTask.value
+  )
+
+lazy val `m2-effects-and-io` = project
   .dependsOn(common)
   .settings(
     scalacOptions ++= scalacOptionsTask.value
