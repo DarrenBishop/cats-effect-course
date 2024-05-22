@@ -84,20 +84,49 @@ object Effects {
    */
 
   // 1
-  val currentTime: MyIO[Long] = ???
+  val currentTime: MyIO[Long] = MyIO(() => System.currentTimeMillis())
 
   //2
-  def measure[A](computation: MyIO[A]): MyIO[Long] = ???
+  def measure[A](computation: MyIO[A]): MyIO[Long] = for
+    start <- currentTime
+    _ <- computation
+    end <- currentTime
+  yield end - start
+
+  // equivalent to
+  //def measure[A](computation: MyIO[A]): MyIO[Long] =
+  //  currentTime.flatMap(st => computation.flatMap(_ => currentTime.map(et => st - et)))
+
+  def testTimeIO(): Unit = {
+    val computation = MyIO(() => Thread.sleep(2000))
+    val test = measure(computation)
+    println(test.unsafeRun())
+  }
 
   //3
-  def printLine(line: String): MyIO[Unit] = ???
+  def printLine(line: String): MyIO[Unit] = MyIO(() => println(line))
 
   //4
-  def readLine(): MyIO[String] = ???
+  def readLine(): MyIO[String] = MyIO(() => scala.io.StdIn.readLine())
+
+  def testConsole(): Unit = {
+    val program = for
+      _ <- printLine("Please enter two lines:")
+      line1 <- readLine()
+      line2 <- readLine()
+      _ <- printLine(s"$line1\n$line2")
+    yield ()
+
+    program.unsafeRun()
+  }
 
   def main(args: Array[String]): Unit = {
 
     //myIO.unsafeRun()
+
+    testTimeIO()
+
+    testConsole()
 
     ec.shutdown()
   }
