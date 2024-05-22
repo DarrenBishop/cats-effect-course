@@ -60,7 +60,7 @@ object Effects {
   case class MyIO[A](unsafeRun: () => A) {
     def map[B](f: A => B): MyIO[B] = MyIO(() => f(unsafeRun()))
 
-    def flatMap[B](f: A => MyIO[B]): MyIO[B] = MyIO(f(unsafeRun()).unsafeRun)
+    def flatMap[B](f: A => MyIO[B]): MyIO[B] = MyIO(() => f(unsafeRun()).unsafeRun())
   }
 
   val myIO: MyIO[Int] = MyIO(() => {
@@ -74,6 +74,26 @@ object Effects {
    - computes a value of type A, if it is successful
    - side effect is needed (allocating and scheduling a thread to do work), execution is separate from construction
    */
+
+  /**
+   * Exercises
+   * 1. An IO that returns the current time of the system
+   * 2. An IO that measures the duration of a computation
+   * 3. An IO that prints something to the console
+   * 4. An IO that reads a line (a String) from the std input
+   */
+
+  // 1
+  val currentTime: MyIO[Long] = ???
+
+  //2
+  def measure[A](computation: MyIO[A]): MyIO[Long] = ???
+
+  //3
+  def printLine(line: String): MyIO[Unit] = ???
+
+  //4
+  def readLine(): MyIO[String] = ???
 
   def main(args: Array[String]): Unit = {
 
