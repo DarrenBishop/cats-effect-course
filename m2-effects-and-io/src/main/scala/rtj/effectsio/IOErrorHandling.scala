@@ -37,7 +37,23 @@ object IOErrorHandling {
     resultAsEffect.unsafeRunSync()
   }
 
+  /**
+   * Exercises
+   */
+
+  // 1 - construct potentially failed IOs from standard data types (Option, Try, Either)
+  def option2IO[A](option: Option[A])(ifEmpty: Throwable): IO[A] = ???
+
+  def try2IO[A](aTry: Try[A]): IO[A] = ???
+
+  def either2IO[A](either: Either[Throwable, A]): IO[A] = ???
+
+  // 2 - handledError, handleErrorWith
+  def handleIOError[A](io: IO[A])(handler: Throwable => A): IO[A] = ???
+
+  def handleIOErrorWith[A](io: IO[A])(handler: Throwable => IO[A]): IO[A] = ???
+
   def main(args: Array[String]): Unit = {
-    runExamples
+    //runExamples
   }
 }
