@@ -1,5 +1,6 @@
 package rtj.effectsio
 
+import cats.Foldable
 import cats.effect.IO
 
 trait PkgSyntax {
@@ -22,6 +23,9 @@ trait PkgSyntax {
       _ <- IO(sleep(millis))
     } yield a
 }
+
+extension [C[_]: Foldable, A](io: IO[C[A]])
+    def sum(using Numeric[A]): IO[A] = io.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))
 
 object syntax extends PkgSyntax
 

@@ -99,4 +99,4 @@ trait API { self: Types with Implicits =>
   }
 }
 
-object Syntax extends Types with Implicits with API
+object syntax extends Types with Implicits with API

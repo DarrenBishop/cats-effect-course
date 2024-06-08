@@ -19,4 +19,4 @@ def nil[E] = List.empty[E]
 // Support for emptiness via Monoid
 def empty[T: Monoid]: T = Monoid[T].empty
 
-export ec.Syntax.*
+export ec.syntax.*
