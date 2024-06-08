@@ -4,6 +4,8 @@ import cats.Parallel
 import cats.syntax.all.*
 import cats.effect.{IO, IOApp}
 
+import rtj.all.*
+
 
 object IOParallelism extends IOApp.Simple {
 

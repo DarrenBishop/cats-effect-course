@@ -3,14 +3,15 @@ package rtj.effectsio
 import scala.concurrent.Future
 import scala.util.Random
 
-import cats.{Parallel, Traverse}
 import cats.effect.{IO, IOApp}
-import rtj.ec.syntax.*
+import cats.{Parallel, Traverse}
+import rtj.all.{*, given}
 
 
 object IOTraversal extends IOApp.Simple {
 
-  given EC = EC()
+  given ec: EC = EC()
+  import ec.given
 
   def heavyComputation(string: String): Int = {
     sleep(Random.nextInt(1000))

@@ -1,5 +1,6 @@
-package rtj
-package effectsio
+package rtj.effectsio
+
+import rtj.all.{*, given}
 
 object Effects {
 
@@ -47,7 +48,9 @@ object Effects {
    - computes a value of type A, if it is successful
    - side effect is needed (allocating and scheduling a thread to do work), execution is NOT separate from construction
    */
-  implicit val ec: EC = EC()
+  given ec: EC = EC()
+  import ec.given
+
   val aFuture: Future[Int] = Future(42) // Future is a type constructor
 
   /*
