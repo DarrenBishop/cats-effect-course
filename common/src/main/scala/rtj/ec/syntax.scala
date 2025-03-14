@@ -38,18 +38,10 @@ trait PkgSyntax {
   def sleep(millis: Long): Unit = Thread.sleep(millis)
 
   extension [A](io: IO[A])
-    def dbg: IO[A] = for {
-      a <- io
-      _ = System.err.println(s"[$threadName] $a")
-    } yield a
-    def delay(millis: Long): IO[A] = for {
-      _ <- IO(sleep(millis))
-      a <- io
-    } yield a
-    def wait(millis: Long): IO[A] = for {
-      a <- io
-      _ <- IO(sleep(millis))
-    } yield a
+    def dbg: IO[A] = io.flatTap(a => IO.println(s"[$threadName] $a"))
+    def debug: IO[A] = dbg
+    def delay(millis: Long): IO[A] = IO(sleep(millis)) >> io
+    def wait(millis: Long): IO[A] = io <* IO(sleep(millis))
 
   extension [C[_]: Foldable, A](io: IO[C[A]])
     def sum(using Numeric[A]): IO[A] = io.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))

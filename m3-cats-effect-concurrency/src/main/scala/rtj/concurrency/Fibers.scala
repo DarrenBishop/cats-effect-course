@@ -1,5 +1,7 @@
 package rtj.concurrency
 
+import scala.concurrent.duration.FiniteDuration
+
 import rtj.predef.*
 import cats.effect.{Fiber, FiberIO, IO, IOApp, Outcome}
 import cats.effect.Outcome.*
@@ -64,11 +66,51 @@ object Fibers extends IOApp.Simple {
     } yield result
   }
 
+/**
+ * Exercises:
+ *
+ *   1. Write a function that runs an IO on another thread, and, depending on the result of the fiber
+ *     - return the result in an IO
+ *     - if errored or cancelled, return a failed IO
+ *
+ *   2. Write a function that takes two IOs, runs them on different fibers and returns an IO with a tuple containing both result
+ *     - if both Is complete successfully, tuple their results
+ *     - if the first I0 returns an error, raise that error (ignoring the second IO's result/error)
+ *     - if the first I0 doesn't error but second I0 returns an error, raise that error
+ *     - if one (or both) canceled, raise a RuntimeException
+ *
+ *   3. Write a function that adds a timeout to an I0:
+ *     - I0 runs on a fiber
+ *     - if the timeout duration passes, then the fiber is canceled
+ *     - the method returns an IO[A] which contains
+ *       - the original value if the computation is successful before the timeout signal
+ *       - the exception if the computation is failed before the timeout signal
+ *       - a RuntimeException if it times out (i.e. cancelled by the timeout)
+ */
+
+// 1
+def processResultsFromFiber[A](io: IO[A]): IO[A] = ???
+
+// 2
+def tupleIOs[A, B](ioa: IO[A], iob: IO[B]): IO[(A, B)] = ???
+
+// 3
+def timeout[A](io: IO[A], timeout: FiniteDuration): IO[A] = ???
+
+
+def runExercises(): IO[Unit] = for {
+  answer1 <- processResultsFromFiber(IO("Exercise 1"))
+  answer2 <- tupleIOs(IO("Exercise 2").dbg, IO(2222).delay(1000))
+  answer3 <- processResultsFromFiber(IO("Exercise 3"))
+} yield ()
+
   //def run: IO[Unit] = sameThreadIOs()
   //def run: IO[Unit] = differentThreadIOs()
   //def run: IO[Unit] =
-    //runOnSomeOtherThread(meaningOfLife) // IO(Succeeded(IO(42)))
-    //.dbg.void
+  //runOnSomeOtherThread(meaningOfLife) // IO(Succeeded(IO(42)))
+  //.dbg.void
   //def run: IO[Unit] = throwOnAnotherThread().dbg.void
-  def run: IO[Unit] = testCancel().dbg.void
+  //def run: IO[Unit] = testCancel().dbg.void
+
+def run: IO[Unit] = runExercises()
 }
