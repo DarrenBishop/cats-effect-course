@@ -3,6 +3,10 @@ package rtj
 import cats.Monoid
 
 trait PkgSyntax {
+  export scala.concurrent.duration.DurationInt
+  export scala.concurrent.duration.DurationLong
+  export scala.concurrent.duration.DurationDouble
+
   def !!![T]: T = ???
 
   // Option support
