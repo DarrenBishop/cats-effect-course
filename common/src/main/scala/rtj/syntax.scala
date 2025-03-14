@@ -8,6 +8,11 @@ trait PkgSyntax {
   export scala.concurrent.duration.DurationDouble
 
   def !!![T]: T = ???
+  def ?? : Throwable =
+    try { !!! }
+    catch {
+      case ex: Throwable => ex
+    }
 
   // Option support
   def none[T]: Option[T] = None
