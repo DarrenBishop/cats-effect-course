@@ -26,12 +26,12 @@ object Resources extends IOApp.Simple {
     fib <- conn.open().andWait(Int.MaxValue.seconds).onCancel(conn.close().void).start
     _ <- IO.sleep(1.second) *> fib.cancel
   } yield ()
-  
+
   /*
     bracket pattern: simeIO.bracket(useResourceCb)(releaseResourceCb)
     bracket is equivalent to try-catch (but pure FP)
    */
-  
+
   val bracketAsyncFetchUrl = IO(new Connection("rockthejvm.com"))
     .bracket(conn => conn.open().andWait(Int.MaxValue.seconds))(conn => conn.close().void)
 
@@ -49,8 +49,20 @@ object Resources extends IOApp.Simple {
     */
   def openFileScanner(path: String): IO[Scanner] =
     IO(new Scanner(new FileReader(new File(path))))
-  
+
+  def bracketReadFile(path: String, poison: Option[String] = None): IO[Unit] =
+    IO.dbg(s"opening file $path") *> (openFileScanner(path).bracket { scanner =>
+      IO(scanner.nextLine()).dbg
+        .andWait(100.millis)
+        .flatTap(line => if (poison.contains(line)) !!?(s"Poison Pill: $line!!!") else IO.unit )
+        .whileM[Vector, String](IO(scanner.hasNextLine))
+    } (scanner => IO.dbg(s"closing file $path") *> IO(scanner.close()))).void
+
   //def run: IO[Unit] = asyncFetchUrl
   //def run: IO[Unit] = resourcefulAsyncFetchUrl
-  def run: IO[Unit] = bracketProgram
+  //def run: IO[Unit] = bracketProgram
+  def run: IO[Unit] = bracketReadFile(
+    "/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/scala/rtj/concurrency/Resources.scala",
+    Option("xxx import rtj.predef.*")
+  ).dbg.silence
 }

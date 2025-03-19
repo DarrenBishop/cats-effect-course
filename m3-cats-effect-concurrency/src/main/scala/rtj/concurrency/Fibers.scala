@@ -88,10 +88,6 @@ object Fibers extends IOApp.Simple {
    *       - a RuntimeException if it times out (i.e. cancelled by the timeout)
    */
 
-  def !? [A](msg: String): IO[A] = IO.raiseError[A](new RuntimeException(msg))
-  def canceled = IO("Fiber canceled")
-  def !![A] = canceled.dbg >>= !?
-
   // 1
   def processResultsFromFiber[A](io: IO[A]): IO[A] = for {
     fib <- io.start

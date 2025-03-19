@@ -5,9 +5,12 @@ import scala.util.{Failure, Success}
 
 import cats.Foldable
 import cats.effect.IO
+import cats.syntax.all.*
 
 
 trait PkgSyntax {
+  import rtj.syntax.*
+  
   def shutdownAll(): Unit = Context.shutdownAll()
 
   def ready[R](fR: Future[R])(implicit duration: FiniteDuration): Future[R] = Await.ready(fR, duration)
@@ -37,6 +40,9 @@ trait PkgSyntax {
 
   def sleep(millis: Long): Unit = Thread.sleep(millis)
 
+  extension (ioo: IO.type)
+    def dbg(message: => String): IO[String] = IO(message).dbg
+
   extension [A](io: IO[A])
     def dbg: IO[A] = io
       .flatTap(a => IO.println(s"[$threadName] $a"))
@@ -44,9 +50,15 @@ trait PkgSyntax {
     def debug: IO[A] = dbg
     def delay(millis: Long): IO[A] = IO(sleep(millis)) >> io
     def wait(millis: Long): IO[A] = io <* IO(sleep(millis))
+    def silence: IO[Unit] = io.attempt.void
 
   extension [C[_]: Foldable, A](io: IO[C[A]])
     def sum(using Numeric[A]): IO[A] = io.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))
+
+
+  def !? [A](msg: String): IO[A] = IO.raiseError[A](!??(msg))
+  def canceled = IO("Fiber canceled")
+  def !![A] = canceled.dbg >>= !?
 }
 
 object syntax extends PkgSyntax

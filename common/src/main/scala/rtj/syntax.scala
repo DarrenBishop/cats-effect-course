@@ -8,6 +8,8 @@ trait PkgSyntax {
   export scala.concurrent.duration.DurationDouble
 
   def !!![T]: T = ???
+  def !??[T] (msg: String): Throwable = new RuntimeException(msg)
+  def !!?[T] (msg: String): T = throw !??(msg)
   def ?? : Throwable =
     try { !!! }
     catch {
