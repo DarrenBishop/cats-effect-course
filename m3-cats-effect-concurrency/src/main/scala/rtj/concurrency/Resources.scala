@@ -3,7 +3,7 @@ package rtj.concurrency
 import java.io.{File, FileReader}
 import java.util.Scanner
 
-import cats.effect.kernel.Outcome.{Canceled, Errored, Succeeded}
+import cats.effect.Outcome.{Canceled, Errored, Succeeded}
 import cats.effect.{IO, IOApp, Resource}
 import rtj.predef.*
 
