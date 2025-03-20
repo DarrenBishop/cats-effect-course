@@ -7,6 +7,10 @@ trait PkgSyntax {
   export scala.concurrent.duration.DurationLong
   export scala.concurrent.duration.DurationDouble
 
+  extension (err: Throwable)
+    def name: String = err.getClass.getName
+    def msg: String = err.getMessage
+
   def !!![T]: T = ???
   def !??[T] (msg: String): Throwable = new RuntimeException(msg)
   def !!?[T] (msg: String): T = throw !??(msg)

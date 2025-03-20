@@ -46,7 +46,7 @@ trait PkgSyntax {
   extension [A](io: IO[A])
     def dbg: IO[A] = io
       .flatTap(a => IO.println(s"[$threadName] $a"))
-      .handleErrorWith(ex => IO.println(s"[$threadName] ${ex.getMessage}") >> IO.raiseError(ex))
+      .handleErrorWith(ex => IO.println(s"[$threadName] ${ex.name}(${ex.msg})") >> IO.raiseError(ex))
     def debug: IO[A] = dbg
     def delay(millis: Long): IO[A] = IO(sleep(millis)) >> io
     def wait(millis: Long): IO[A] = io <* IO(sleep(millis))

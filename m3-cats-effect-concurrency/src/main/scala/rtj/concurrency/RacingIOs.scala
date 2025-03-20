@@ -58,13 +58,80 @@ object RacingIOs extends IOApp.Simple {
     */
 
   // 1
-  def timeout[A](io: IO[A], duration: FiniteDuration): IO[A] = ???
+  def timeout[A](io: IO[A], duration: FiniteDuration): IO[A] =
+    IO.race(IO.sleep(duration).map(_ => !??("computation timed out!")), io).rethrow
+
+  val testTimeout_v1 = timeout(IO("some operation").delayBy(600.millis), 500.millis).dbg
+  val testTimeout_v2 = IO("some operation").delayBy(600.millis).timeout(500.millis).dbg
+
+  def testTimeout() = for {
+    _ <- testTimeout_v1.silence
+    _ <- testTimeout_v2.silence
+  } yield ()
 
   // 2
-  def unrace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] = ???
+  def unrace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] =
+    IO.racePair(ioa, iob).flatMap {
+      case Left((_, fiber)) => fiber.join.flatMap {
+        case Succeeded(loser) => loser.map(Right(_))
+        case Errored(err) => IO.raiseError(err)
+        case Canceled() => !!
+      }
+      case Right((fiber, _)) => fiber.join.flatMap {
+        case Succeeded(loser) => loser.map(Left(_))
+        case Errored(err) => IO.raiseError(err)
+        case Canceled() => !!
+      }
+    }
+
+  def testUnrace() = for {
+    _ <- unrace(IO.dbg("first operation: fast"), IO.dbg("second operation: slow").andWait(500.millis)).dbg.silence
+    _ <- unrace(IO.dbg("first operation: slow").andWait(500.millis), IO.dbg("second operation: fast")).dbg.silence
+  } yield ()
 
   // 3
-  def simpleRace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] = ???
+  def simpleRace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] =
+    IO.racePair(ioa, iob).flatMap {
+      case Left((Succeeded(ioa), fiber)) => fiber.cancel *> ioa.map(Left(_))
+      case Left((Errored(err), fiber)) => fiber.cancel *> IO.raiseError(err)
+      case Left((Canceled(), fiber)) => fiber.join.flatMap {
+        case Succeeded(loser) => loser.map(Right(_))
+        case Errored(err) => IO.raiseError(err)
+        case Canceled() => !?("both canceled")
+      }
+      case Right((fiber, Succeeded(iob))) => fiber.cancel *> iob.map(Right(_))
+      case Right((fiber, Errored(err))) => fiber.cancel *> IO.raiseError(err)
+      case Right((fiber, Canceled())) => fiber.join.flatMap {
+        case Succeeded(loser) => loser.map(Left(_))
+        case Errored(err) => IO.raiseError(err)
+        case Canceled() => !?("both canceled")
+      }
+    }
 
-  def run: IO[Unit] = testRacePair().void
+  def testSimpleRace() = for {
+    //_ <- simpleRace(IO.dbg("first slow").delayBy(100.millis), IO.dbg("second success")).dbg.void
+
+    //_ <- simpleRace(!?("first failure").dbg, IO.dbg("second success").delayBy(100.millis)).dbg.void
+    //_ <- simpleRace(!?("first failure").dbg, !?("second failure").dbg.delayBy(100.millis)).dbg.silence
+    //_ <- simpleRace(!?("first failure").dbg, IO.dbg("second canceled") *> IO.canceled.delayBy(100.millis)).dbg.silence
+
+    //_ <- simpleRace(IO.dbg("first canceled") *> IO.canceled, IO.dbg("second success").delayBy(100.millis)).dbg.void
+    //_ <- simpleRace(IO.dbg("first canceled") *> IO.canceled, !?("second failure").dbg.delayBy(100.millis)).dbg.silence
+    //_ <- simpleRace(IO.dbg("first canceled") *> IO.canceled, IO.dbg("second canceled") *> IO.canceled.delayBy(100.millis)).dbg.silence
+
+    //_ <- simpleRace(IO.sleep(100.millis).guarantee(IO.dbg("first canceled").void), IO.dbg("second operation")).dbg.void
+
+    _ <- simpleRace(IO.dbg("first success").delayBy(100.millis), !?("second failure").dbg).dbg.silence
+    _ <- simpleRace(!?("fist failure").dbg.delayBy(100.millis), !?("second failure").dbg).dbg.silence
+    _ <- simpleRace(IO.dbg("first canceled") *> IO.canceled.delayBy(100.millis), !?("second failure").dbg).dbg.silence
+
+    //_ <- simpleRace(IO.dbg("first success").delayBy(100.millis), IO.dbg("second canceled") *> IO.canceled).dbg.void
+    //_ <- simpleRace(!?("first failure").dbg.delayBy(100.millis), IO.dbg("second canceled") *> IO.canceled).dbg.silence
+    //_ <- simpleRace(IO.dbg("first canceled") *> IO.canceled.delayBy(100.millis), IO.dbg("second canceled") *> IO.canceled).dbg.silence
+
+  } yield ()
+
+  //def run: IO[Unit] = testTimeout()
+  //def run: IO[Unit] = testUnrace()
+  def run: IO[Unit] = testSimpleRace()
 }
