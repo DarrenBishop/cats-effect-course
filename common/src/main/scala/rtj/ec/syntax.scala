@@ -42,12 +42,12 @@ trait PkgSyntax {
 
   extension (ioo: IO.type)
     def dbg(message: => String): IO[String] = IO(message).dbg
+    def void(message: => String): IO[Unit] = IO.dbg(message).void
 
   extension [A](io: IO[A])
     def dbg: IO[A] = io
       .flatTap(a => IO.println(s"[$threadName] $a"))
       .handleErrorWith(ex => IO.println(s"[$threadName] ${ex.name}(${ex.msg})") >> IO.raiseError(ex))
-    def debug: IO[A] = dbg
     def delay(millis: Long): IO[A] = IO(sleep(millis)) >> io
     def wait(millis: Long): IO[A] = io <* IO(sleep(millis))
     def silence: IO[Unit] = io.attempt.void
