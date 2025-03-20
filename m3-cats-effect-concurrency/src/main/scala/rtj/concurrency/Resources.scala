@@ -3,12 +3,15 @@ package rtj.concurrency
 import java.io.{File, FileReader}
 import java.util.Scanner
 
+import cats.effect.kernel.Outcome.{Canceled, Errored, Succeeded}
 import cats.effect.{IO, IOApp, Resource}
 import rtj.predef.*
 
 object Resources extends IOApp.Simple {
 
-  // use-case: manage a connection lifecycle
+  /**
+    * use-case: manage a connection lifecycle
+    */
   class Connection(url: String) {
     def open(): IO[String] = IO.dbg(s"opening connection to $url")
     def use(): IO[Unit] = IO.dbg(s"using connection to $url").void
@@ -20,7 +23,9 @@ object Resources extends IOApp.Simple {
     _ <- IO.sleep(1.second) *> fib.cancel
   } yield ()
 
-  // problem: leaking resources
+  /**
+    *  problem: nesting resources are tedious, hard to read and debug
+    */
 
   val resourcefulAsyncFetchUrl = for {
     conn <- IO(new Connection("rockthejvm.com"))
@@ -28,10 +33,10 @@ object Resources extends IOApp.Simple {
     _ <- IO.sleep(1.second) *> fib.cancel
   } yield ()
 
-  /*
-    bracket pattern: simeIO.bracket(useResourceCb)(releaseResourceCb)
-    bracket is equivalent to try-catch (but pure FP)
-   */
+  /**
+    *  bracket pattern: simeIO.bracket(useResourceCb)(releaseResourceCb)
+    *  bracket is equivalent to try-catch (but pure FP)
+    */
 
   val bracketAsyncFetchUrl = IO(new Connection("rockthejvm.com"))
     .bracket(conn => conn.open().andWait(Int.MaxValue.seconds))(conn => conn.close().void)
@@ -49,10 +54,10 @@ object Resources extends IOApp.Simple {
     *  - if cancelled/throws error, close the scanner
     */
   def openFileScanner(path: String): IO[Scanner] =
-    IO(new Scanner(new FileReader(new File(path))))
+    IO.dbg(s"opening file $path") *> IO(new Scanner(new FileReader(new File(path))))
 
   def bracketReadFile(path: String, poison: Option[String] = None): IO[Unit] =
-    IO.dbg(s"opening file $path") *> (openFileScanner(path).bracket { scanner =>
+    (openFileScanner(path).bracket { scanner =>
       IO(scanner.nextLine()).dbg
         .andWait(100.millis)
         .flatTap(line => if (poison.contains(line)) !!?(s"Poison Pill: $line!!!") else IO.unit )
@@ -73,7 +78,9 @@ object Resources extends IOApp.Simple {
           } { conn => IO(conn.close()) }
       } { scanner => IO.dbg(s"closing file $path") *> IO(scanner. close()) }
 
-  // problem: nesting resources are tedious, hard to read and debug
+  /**
+    *  problem: nesting resources are tedious, hard to read and debug
+    */
 
   def connectionFromR(path: String) = Resource.make(IO.dbg(s"creating connection to $path") *> IO(new Connection(path)))(_.close().void)
   val connectionResource = connectionFromR("rockthejvm.com")
@@ -95,6 +102,16 @@ object Resources extends IOApp.Simple {
     * Exercise: read a text file with one line every 100 millis, using Resource
     * (refactor the bracket exercise to use Resource)
     */
+  def resourceReadFile(path: String, poison: Option[String] = None): IO[Unit] =
+    Resource
+      .make(openFileScanner(path))(scanner => IO.dbg(s"closing file $path") *> IO(scanner.close()))
+      .use { scanner =>
+        IO(scanner.nextLine()).dbg
+          .andWait(100.millis)
+          .flatTap(line => if (poison.contains(line)) !!?(s"Poison Pill: $line!!!") else IO.unit )
+          .whileM[Vector, String](IO(scanner.hasNextLine))
+      }
+      .void
 
   //def run: IO[Unit] = asyncFetchUrl
   //def run: IO[Unit] = resourcefulAsyncFetchUrl
@@ -103,5 +120,9 @@ object Resources extends IOApp.Simple {
   //  "/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/scala/rtj/concurrency/Resources.scala",
   //  Option("xxx import rtj.predef.*")
   //).dbg.silence
-  def run: IO[Unit] = resourceFetchUrl
+  //def run: IO[Unit] = resourceFetchUrl
+  def run: IO[Unit] = resourceReadFile(
+    "/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/scala/rtj/concurrency/Resources.scala",
+    Option("xxx import rtj.predef.*")
+  ).dbg.silence
 }
