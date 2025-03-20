@@ -113,6 +113,41 @@ object Resources extends IOApp.Simple {
       }
       .void
 
+  /**
+    * nested resources
+    */
+  def connFromConfResource(path: String) =
+    Resource.make(openFileScanner(path))(scanner => IO.dbg(s"closing file $path") *> IO(scanner.close()))
+      .flatMap(scanner => Resource.make(IO(new Connection(scanner.nextLine())))(_.close().void))
+
+  /**
+    * equivalent
+    */
+  def connFromConfResourceClean(path: String) = for {
+    scanner  <- Resource.make(openFileScanner(path))(scanner => IO.dbg(s"closing file $path") *> IO(scanner.close()))
+    conn <- Resource.make(IO(new Connection(scanner.nextLine())))(_.close().void)
+  } yield conn
+
+  /**
+    * connection & file will close automatically
+    */
+  def openConnection(path: String) = connFromConfResourceClean(path).use { conn => conn.use() >> IO.never }
+
+  def cancelledConnection(path: String) = for {
+    fib <- openConnection(path).start
+    _ <- IO.sleep(1.second) *> IO.dbg("cancelling!") *> fib.cancel
+  } yield ()
+
+  /**
+    * finalizers to regular IOs
+    */
+  val ioWithFinalizer = IO.dbg("some resource").guarantee(IO.dbg("freeing resource").void)
+  val ioWithFinalizer_v2 = IO.dbg("some resource").andWait(5.seconds).guaranteeCase {
+    case Succeeded(fa) => fa.flatMap { resource => IO.dbg(s"freeing $resource") }.void
+    case Errored(_) => IO.dbg("nothing to release").void
+    case Canceled() => IO.dbg("effect got canceled, releasing what's left").void
+  }
+
   //def run: IO[Unit] = asyncFetchUrl
   //def run: IO[Unit] = resourcefulAsyncFetchUrl
   //def run: IO[Unit] = bracketProgram
@@ -121,8 +156,12 @@ object Resources extends IOApp.Simple {
   //  Option("xxx import rtj.predef.*")
   //).dbg.silence
   //def run: IO[Unit] = resourceFetchUrl
-  def run: IO[Unit] = resourceReadFile(
-    "/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/scala/rtj/concurrency/Resources.scala",
-    Option("xxx import rtj.predef.*")
-  ).dbg.silence
+  //def run: IO[Unit] = resourceReadFile(
+  //  "/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/scala/rtj/concurrency/Resources.scala",
+  //  Option("import rtj.predef.*")
+  //).dbg.silence
+  //def run: IO[Unit] = openConnection("/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/resources/connection.txt")
+  //def run: IO[Unit] = cancelledConnection("/Users/darren/Workspaces/Courses/RockTheJVM/cats-effect-course/m3-cats-effect-concurrency/src/main/resources/connection.txt")
+  //def run: IO[Unit] = ioWithFinalizer.void
+  def run: IO[Unit] = ioWithFinalizer_v2.void
 }

@@ -1,4 +1,4 @@
-## Bracket
+# Bracket
 
 ```scala 3 mdoc:invisible
 import cats.effect.IO
@@ -10,7 +10,7 @@ class Connection(url: String) {
 }
 ```
 
-Problem: leaking resources
+## Problem: leaking resources
 
 ```scala 3 mdoc
 val asyncFetchUrl : fpr {
