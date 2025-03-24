@@ -81,11 +81,42 @@ object AsyncIOs extends IOApp.Simple {
     * Exercise 3: can you define a never ending IO?
     */
   def neverIO: IO[Unit] = IO.async_(_ => ())
+  def neverIO_v2: IO[Unit] = IO.never
+
+  /**
+    * Full Async Call
+    */
+  def demoAsyncCancellation() = {
+    val asyncMeaningOfLife_v2: IO[Int] = IO.async { cb =>
+
+    /**
+      * we want a finalizer in case computation gets cancelled:
+      * - finalizers are of type IO[Unit]
+      * - specifying a finalizer is optional, thus => Option[IO[Unit]]
+      * - creating option is an effect => IO[Option[IO[Unit]]]
+       */
+      // return IO[Option[IO[Unit]]]
+      IO {
+        threadPool.execute { () =>
+          val result = computeMeaningOfLifeEither()
+          cb(result)
+        }
+      }.as(Some(IO.void("cancelled!")))
+    }
+
+    for {
+      fib <- asyncMeaningOfLife_v2.start
+      _ <- IO.sleep(500.millis) >> IO.dbg("cancelling...") >>  fib.cancel
+      _ <- fib.join
+    } yield ()
+  }
 
   //def run: IO[Unit] = asyncMolIO.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncToIO(() => 42)(ec).dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncMolIO_v2.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncMolIO_v3.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncMolIO_v4.dbg >> IO(threadPool.shutdown())
-  def run: IO[Unit] = IO.dbg("started") >> neverIO.guarantee(IO.void("cancelled")) >> IO.void("completed")
+  //def run: IO[Unit] = IO.dbg("started") >> neverIO.guarantee(IO.void("cancelled")) >> IO.void("completed")
+  //def run: IO[Unit] = IO.dbg("started") >> neverIO_v2.guarantee(IO.void("cancelled")) >> IO.void("completed")
+  def run: IO[Unit] = demoAsyncCancellation().void >> IO(threadPool.shutdown())
 }
