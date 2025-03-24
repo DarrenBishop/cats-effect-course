@@ -41,8 +41,8 @@ trait PkgSyntax {
   def sleep(millis: Long): Unit = Thread.sleep(millis)
 
   extension (ioo: IO.type)
-    def dbg(message: => String): IO[String] = IO(message).dbg
-    def void(message: => String): IO[Unit] = IO.dbg(message).void
+    def dbg(any: => Any): IO[String] = IO(s"$any").dbg
+    def void(any: => Any): IO[Unit] = IO.dbg(s"$any").void
 
   extension [A](io: IO[A])
     def dbg: IO[A] = io

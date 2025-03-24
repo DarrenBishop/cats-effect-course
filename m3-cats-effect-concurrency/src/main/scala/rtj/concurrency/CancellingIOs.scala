@@ -82,5 +82,40 @@ object CancellingIOs extends IOApp.Simple {
     * Poll calls are "gaps opened" in the uncancelable region
     */
 
-  def run: IO[Unit] = authProgram
+  /**
+    * Exercises
+    */
+
+  // 1
+  val cancelBeforeMol = IO.canceled >> IO.dbg(42)
+  val uncancelableMol = IO.uncancelable(_ => IO.canceled >> IO.dbg(42)) // will print '42'
+  // uncancelable will eliminate ALL cancel points
+
+  // 2
+  val invincibleAuthProgram = for {
+    authFib <- IO.uncancelable(_ => authFlow).start // input-password cannot be canceled
+    _ <- IO.sleep(200.millis) >> IO.dbg("Authentication timeout, attempting cancel...") >> authFib.cancel
+    _ <- authFib.join
+  } yield ()
+
+  // 3
+  val threeStepProgram: IO[Unit] = {
+    val sequence = IO.uncancelable { poll =>
+      poll(IO.dbg("first cancelable") >> IO.sleep(1.second) >> IO.dbg("first cancelable end")) >>
+        IO.dbg("uncancelable") >> IO.sleep(1.second) >> IO.dbg("uncancelable end") >>
+          poll(IO.dbg("second cancelable") >> IO.sleep(1.second) >> IO.dbg("second cancelable end"))
+    }
+
+    for {
+      fib <- sequence.start
+      _ <- IO.sleep(1500.millis) >> IO.dbg("cancelling...") >> fib.cancel
+      _ <- fib.join
+    } yield ()
+  }
+
+  //def run: IO[Unit] = authProgram
+  //def run: IO[Unit] = cancelBeforeMol.void
+  //def run: IO[Unit] = uncancelableMol.void
+  //def run: IO[Unit] = invincibleAuthProgram
+  def run: IO[Unit] = threeStepProgram
 }
