@@ -80,10 +80,12 @@ object AsyncIOs extends IOApp.Simple {
   /**
     * Exercise 3: can you define a never ending IO?
     */
+  def neverIO: IO[Unit] = IO.async_(_ => ())
 
   //def run: IO[Unit] = asyncMolIO.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncToIO(() => 42)(ec).dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncMolIO_v2.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncMolIO_v3.dbg >> IO(threadPool.shutdown())
-  def run: IO[Unit] = asyncMolIO_v4.dbg >> IO(threadPool.shutdown())
+  //def run: IO[Unit] = asyncMolIO_v4.dbg >> IO(threadPool.shutdown())
+  def run: IO[Unit] = IO.dbg("started") >> neverIO.guarantee(IO.void("cancelled")) >> IO.void("completed")
 }
