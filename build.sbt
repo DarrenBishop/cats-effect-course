@@ -69,3 +69,9 @@ lazy val `m3-cats-effect-concurrency` = project
   .settings(
     scalacOptions ++= scalacOptionsTask.value
   )
+
+lazy val `m4-cats-effect-concurrent-coordination` = project
+  .dependsOn(common)
+  .settings(
+    scalacOptions ++= scalacOptionsTask.value
+  )
