@@ -62,8 +62,6 @@ object AsyncIOs extends IOApp.Simple {
   /**
     * Exercise 2: lift an async computation as a Future to IO.
     */
-  lazy val molFuture: Future[Int] = Future(computeMeaningOfLife())
-
   def futureToIO[A](computation: => Future[A])(using ExecutionContext): IO[A] =
     IO.async_ { cb =>
       computation.onComplete { result =>
@@ -74,8 +72,18 @@ object AsyncIOs extends IOApp.Simple {
       }
     }
 
+  lazy val molFuture: Future[Int] = Future(computeMeaningOfLife())
+
+  val asyncMolIO_v3 = futureToIO(molFuture)
+  val asyncMolIO_v4 = IO.fromFuture(IO(molFuture))
+
+  /**
+    * Exercise 3: can you define a never ending IO?
+    */
+
   //def run: IO[Unit] = asyncMolIO.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncToIO(() => 42)(ec).dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncMolIO_v2.dbg >> IO(threadPool.shutdown())
-  def run: IO[Unit] = futureToIO(molFuture).dbg >> IO(threadPool.shutdown())
+  //def run: IO[Unit] = asyncMolIO_v3.dbg >> IO(threadPool.shutdown())
+  def run: IO[Unit] = asyncMolIO_v4.dbg >> IO(threadPool.shutdown())
 }
