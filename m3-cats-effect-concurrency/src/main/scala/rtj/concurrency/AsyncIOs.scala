@@ -64,7 +64,18 @@ object AsyncIOs extends IOApp.Simple {
     */
   lazy val molFuture: Future[Int] = Future(computeMeaningOfLife())
 
+  def futureToIO[A](computation: => Future[A])(using ExecutionContext): IO[A] =
+    IO.async_ { cb =>
+      computation.onComplete { result =>
+        cb(result.toEither.map { value =>
+          println(s"[$threadName] computed future $value")
+          value
+        })
+      }
+    }
+
   //def run: IO[Unit] = asyncMolIO.dbg >> IO(threadPool.shutdown())
   //def run: IO[Unit] = asyncToIO(() => 42)(ec).dbg >> IO(threadPool.shutdown())
-  def run: IO[Unit] = asyncMolIO_v2.dbg >> IO(threadPool.shutdown())
+  //def run: IO[Unit] = asyncMolIO_v2.dbg >> IO(threadPool.shutdown())
+  def run: IO[Unit] = futureToIO(molFuture).dbg >> IO(threadPool.shutdown())
 }
