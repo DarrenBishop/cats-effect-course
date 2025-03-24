@@ -41,7 +41,19 @@ object AsyncIOs extends IOApp.Simple {
   /**
     * Exercise
     */
-  def asyncToIO[A](computation: () => A)(ec: ExecutionContext): IO[A] = ???
+  def asyncToIO[A](computation: () => A)(ec: ExecutionContext): IO[A] =
+    IO.async_ { cb =>
+      ec.execute { () =>
+        cb {
+          Try {
+            val result = computation()
+            println(s"[$threadName] computed $result")
+            result
+          }.toEither
+        }
+      }
+    }
 
-  def run: IO[Unit] = asyncMolIO.dbg >> IO(threadPool.shutdown())
+  //def run: IO[Unit] = asyncMolIO.dbg >> IO(threadPool.shutdown())
+  def run: IO[Unit] = asyncToIO(() => 42)(ec).dbg.void >> IO(threadPool.shutdown())
 }
