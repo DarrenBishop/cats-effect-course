@@ -38,7 +38,7 @@ A `Fiber` type constructor features 3 type parameters:
 Creating a fiber is an effectful operation
 - the fiber will be wrapped in IO
 
-```scala modc
+```scala 3 mdoc
 val aFiber: IO[Fiber[IO, Throwable, Int]] = meaningOfLife.start
 ```
 

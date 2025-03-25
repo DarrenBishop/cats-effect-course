@@ -17,7 +17,7 @@ object Versions {
     val Revolver = "0.10.0"
     val ScalaFix = "0.12.0"
     val BuildInfo = "0.11.0"
-    val Mdoc = "2.5.2"
+    val Mdoc = "2.6.5"
     val Scoverage = "1.9.2"
     val Assembly = "2.2.0"
     val AssemblyL4J2 = "1.1.3"
