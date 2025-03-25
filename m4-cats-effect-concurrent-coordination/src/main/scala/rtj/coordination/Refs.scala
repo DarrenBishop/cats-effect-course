@@ -131,7 +131,56 @@ object Refs extends IOApp.Simple {
     } yield ()
   }
 
+  def tickingClockPure(): IO[Unit] = {
+    def tickingClock(ticksRef: Ref[IO, Long]): IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      time = System.currentTimeMillis()
+      ticks <- ticksRef.updateAndGet(_ + 1)
+      _ <- IO.dbg(s"$ticks: $time")
+      _ <- tickingClock(ticksRef)
+    } yield ()
+
+    def printTicks(ticksRef: Ref[IO, Long]): IO[Unit] = for {
+      _ <- IO.sleep(5.seconds)
+      ticks <- ticksRef.get
+      _ <- IO.dbg(s"TICKS: $ticks")
+      _ <- printTicks(ticksRef)
+    } yield ()
+
+    for {
+      ticksRef <- IO.ref(0L)
+      _ <- (tickingClock(ticksRef), printTicks(ticksRef)).parTupled
+    } yield ()
+  }
+
+  def tickingClockWeird(): IO[Unit] = {
+    val ticksInit: IO[Ref[IO, Long]] = IO.ref(0L)
+
+    def tickingClock: IO[Unit] = for {
+      ticksRef <- ticksInit // ticksInit will give you a NEW ref
+      _ <- IO.sleep(1.second)
+      time = System.currentTimeMillis()
+      ticks <- ticksRef.updateAndGet(_ + 1)
+      _ <- IO.dbg(s"$ticks: $time")
+      _ <- tickingClock
+    } yield ()
+
+    def printTicks: IO[Unit] = for {
+      ticksRef <- ticksInit
+      _ <- IO.sleep(5.seconds)
+      ticks <- ticksRef.get
+      _ <- IO.dbg(s"TICKS: $ticks")
+      _ <- printTicks
+    } yield ()
+
+    for {
+      _ <- (tickingClock, printTicks).parTupled
+    } yield ()
+  }
+
   //def run: IO[Unit] = demoConcurrentWorkImpure()
   //def run: IO[Unit] = demoConcurrentWorkPure()
-  def run: IO[Unit] = tickingClockImpure()
+  //def run: IO[Unit] = tickingClockImpure()
+  //def run: IO[Unit] = tickingClockPure()
+  def run: IO[Unit] = tickingClockWeird()
 }
