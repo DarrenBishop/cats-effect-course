@@ -106,5 +106,32 @@ object Refs extends IOApp.Simple {
     } yield ()
   }
 
-  def run: IO[Unit] = demoConcurrentWorkPure()
+  /**
+    * Exercise
+    */
+  def tickingClockImpure(): IO[Unit] = {
+    var ticks: Long = 0L
+
+    def tickingClock: IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      time = System.currentTimeMillis()
+      _ <- IO(ticks += 1)
+      _ <- IO.dbg(s"$ticks: $time")
+      _ <- tickingClock
+    } yield ()
+
+    def printTicks: IO[Unit] = for {
+      _ <- IO.sleep(5.seconds)
+      _ <- IO.dbg(s"TICKS: $ticks")
+      _ <- printTicks
+    } yield ()
+
+    for {
+      _ <- (tickingClock, printTicks).parTupled
+    } yield ()
+  }
+
+  //def run: IO[Unit] = demoConcurrentWorkImpure()
+  //def run: IO[Unit] = demoConcurrentWorkPure()
+  def run: IO[Unit] = tickingClockImpure()
 }
