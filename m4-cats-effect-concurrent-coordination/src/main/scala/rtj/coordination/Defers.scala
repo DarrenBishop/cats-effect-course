@@ -1,6 +1,6 @@
 package rtj.coordination
 
-import cats.effect.{Deferred, IO, IOApp, Ref}
+import cats.effect.{Deferred, Fiber, IO, IOApp, Outcome, Ref}
 import cats.syntax.all.*
 import rtj.all.*
 
@@ -97,6 +97,33 @@ object Defers extends IOApp.Simple {
       _ <- (notifyFileComplete(signal), downloadFile(contentRef, signal)).parTupled
     } yield ()
   }
+
+  /**
+   * Exercise 1:
+   * - (medium) write a small alarm notification with two simultaneous IOs
+   *    - one that increments a counter every second (a clock)
+   *    - one that waits for the counter to become 10, then prints a message "time's up!"
+   */
+  
+  /**
+   * Exercise 2:
+   * - (mega hard) implement racePair with Deferred.
+   *    - use a Deferred which can hold an Either[outcome for the ioa, outcome for iob]
+   *    - start two fibers, one for each IO
+   *    - on completion (with any status), each IO needs to complete that Deferred
+   *       (hint: use a finalizer from the Resources lesson)
+   *       (hint 2: use a guarantee call to make sure the fibers complete the Deferred)
+   *    - what do you do in case of cancellation (the hardest part)?
+   */
+
+  type RaceResult[F[_], A, B] = Either[
+    (Outcome[F, Throwable, A], Fiber[F, Throwable, B]), // (winner outcome, loser fiber)
+    (Fiber[F, Throwable, A], Outcome[F, Throwable, B]) // (loser fiber, winner outcome)
+  ]
+
+  type RaceResultIO[A, B] = RaceResult[IO, A, B]
+
+  def ourRacePair[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResultIO[A, B]] = ???
 
   //def run: IO[Unit] = demoDeferred()
   //def run: IO[Unit] = fileNotifierWithRef()
