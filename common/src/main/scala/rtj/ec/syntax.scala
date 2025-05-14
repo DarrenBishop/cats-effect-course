@@ -43,6 +43,8 @@ trait PkgSyntax {
   extension (ioo: IO.type)
     def dbg(any: => Any): IO[String] = IO(s"$any").dbg
     def void(any: => Any): IO[Unit] = IO.dbg(s"$any").void
+    def err[A](msg: String): IO[A] = IO.raiseError[A](!??(msg))
+    def pass[A](f: (IO[A] => IO[A]) => IO[A]): IO[A] = f(identity)
 
   extension [A](io: IO[A])
     def dbg: IO[A] = io
@@ -55,7 +57,7 @@ trait PkgSyntax {
     def sum(using Numeric[A]): IO[A] = io.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))
 
 
-  def !? [A](msg: String): IO[A] = IO.raiseError[A](!??(msg))
+  def !? [A](msg: String): IO[A] = IO.err(msg)
   def canceled = IO("Fiber canceled")
   def !![A] = canceled.dbg >>= !?
 }

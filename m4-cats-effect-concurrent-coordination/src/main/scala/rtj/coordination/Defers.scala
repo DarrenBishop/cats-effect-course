@@ -1,6 +1,7 @@
 package rtj.coordination
 
-import cats.effect.{Deferred, Fiber, IO, IOApp, Outcome, Ref}
+import cats.effect.Outcome.*
+import cats.effect.{Deferred, Fiber, IO, IOApp, Outcome, OutcomeIO, Ref}
 import cats.syntax.all.*
 import rtj.all.*
 
@@ -104,7 +105,25 @@ object Defers extends IOApp.Simple {
    *    - one that increments a counter every second (a clock)
    *    - one that waits for the counter to become 10, then prints a message "time's up!"
    */
-  
+
+  def alarm(): IO[Unit] = {
+    def tick(time: Ref[IO, Int], signal: Deferred[IO, Int]): IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      nt <- time.updateAndGet(_ + 1)
+      _ <- IO.void(s"the time is $nt")
+      _ <- IO(nt == 10).ifM(signal.complete(nt), tick(time, signal))
+    } yield ()
+
+    def notification(signal: Deferred[IO, Int]): IO[Unit] =
+    signal.get >> IO.void("time's up!")
+
+    for {
+      time <- IO.ref(0)
+      signal <- IO.deferred[Int]
+      _ <- (notification(signal), tick(time, signal)).parTupled
+    } yield ()
+  }
+
   /**
    * Exercise 2:
    * - (mega hard) implement racePair with Deferred.
@@ -123,9 +142,42 @@ object Defers extends IOApp.Simple {
 
   type RaceResultIO[A, B] = RaceResult[IO, A, B]
 
-  def ourRacePair[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResultIO[A, B]] = ???
+  def ourRacePair[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResultIO[A, B]] = for {
+    race <- IO.deferred[RaceResultIO[A, B]]
+    fiba <- ioa.onCancel(IO.void("IO-A canceled!")).start
+    fibb <- iob.onCancel(IO.void("IO-B canceled!")).start
+    fibra <- fiba.join.guaranteeCase {
+      case Succeeded(iooa) => iooa >>= (oa => race.complete((oa, fibb).asLeft).void)
+      case Errored(err) => race.complete((Errored(err), fibb).asLeft).void
+      case Canceled() => fiba.cancel
+    }.start
+    fibrb <- fibb.join.guaranteeCase {
+      case Succeeded(ioob) => ioob >>= (ob => race.complete((fiba, ob).asRight).void)
+      case Errored(err) => race.complete((fiba, Errored(err)).asRight).void
+      case Canceled() => fibb.cancel
+    }.start
+    result <- (race.get <* IO.dbg("Got result...")).onCancel {
+      IO.dbg("IO-A vs IO-B race canceled!") >> (fibra.cancel, fibrb.cancel).parTupled.void
+    }
+  } yield result
+
+  def ourRacePair_v2[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResultIO[A, B]] = for {
+    race <- IO.deferred[Either[OutcomeIO[A], OutcomeIO[B]]].onCancel(IO.void("Deferred canceled!"))
+    fiba <- ioa.guaranteeCase(out => race.complete(Left(out)).void).onCancel(IO.void("IO-A canceled!")).start.onCancel(IO.void("IO-A-fiber canceled!"))
+    fibb <- iob.guaranteeCase(out => race.complete(Right(out)).void).onCancel(IO.void("IO-B canceled!")).start.onCancel(IO.void("IO-B-fiber canceled!"))
+    result <- race.get.onCancel(IO.void("IO-A vs IO-B race canceled!") >> (fiba.cancel, fibb.cancel).parTupled.void)
+  } yield result match {
+    case Left(outA) => Left(outA -> fibb)
+    case Right(outB) => Right(fiba -> outB)
+  }
 
   //def run: IO[Unit] = demoDeferred()
   //def run: IO[Unit] = fileNotifierWithRef()
-  def run: IO[Unit] = fileNotifierWithDeferred()
+  //def run: IO[Unit] = fileNotifierWithDeferred()
+  //def run: IO[Unit] = alarm()
+  //def run: IO[Unit] = ourRacePair(IO.sleep(250.millis) >> IO("IO-A succeeded"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.void
+  //def run: IO[Unit] = ourRacePair(IO.sleep(1000.millis) >> !?("IO-A errored"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.void
+  //def run: IO[Unit] = ourRacePair(IO.sleep(1000.millis) >> !?("IO-A errored"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.start >>= (fib => IO.sleep(250.millis) >> fib.cancel)
+  def run: IO[Unit] = ourRacePair_v2(IO.sleep(750.millis) >> IO("IO-A succeeded"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.void
+  //def run: IO[Unit] = ourRacePair_v2(IO.sleep(1000.millis) >> !?("IO-A errored"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.start >>= (fib => IO.sleep(250.millis) >> fib.cancel)
 }
