@@ -4,6 +4,7 @@ import cats.effect.{Deferred, IO, IOApp, Ref}
 import cats.syntax.all.*
 import rtj.all.*
 
+import scala.collection.immutable.Queue
 import scala.util.Random
 
 abstract class Mutex {
@@ -12,7 +13,43 @@ abstract class Mutex {
 }
 
 object Mutex extends IOApp.Simple {
-  def create: IO[Mutex] = ??? // TODO
+  type Signal = Deferred[IO, Unit]
+  case class State(locked: Boolean, signals: Queue[Signal])
+  private val unlocked = State(false, Queue())
+
+  def create: IO[Mutex] = IO.ref(unlocked).map { state =>
+    new Mutex {
+      /*
+          Change the state of the Ref:
+          - if the mutex is currently unlocked, state becomes (true, [])
+          - if the mutex is locked, state becomes (true, queue + new-signal) AND WAIT ON THAT SIGNAL
+       */
+      def acquire: IO[Unit] = for {
+        signal <- IO.deferred[Unit]
+        _ <- state.flatModify {
+          case State(false, _) => State(true, Queue()) -> IO.unit
+          case State(true, queue) => State(true, queue.enqueue(signal)) -> signal.get
+        }
+      } yield ()
+
+      /*
+          Change the state of the Ref:
+          - if the mutex is unlocked, leave the state unchanged
+          - if the mutex is locked:
+            - if the queue is empty, unlock the mutex i.e. state becomes (false, [])
+            - if the queue is not empty, remove a signal from the queue and complete it (thereby unblocing a fiber waiting on it)
+       */
+      def release: IO[Unit] = for {
+        _ <- state.flatModify {
+          case state @ State(false, _) => (state, IO.unit)
+          case State(true, Queue())=> (State(false, Queue()), IO.unit)
+          case State(true, queue) =>
+            val (next, rest) = queue.dequeue
+            (State(true, rest), next.complete(()))
+        }
+      } yield ()
+    }
+  }
   def mutex[A](f: Mutex => IO[A]): IO[A] = create.flatMap(f)
 
   // App
