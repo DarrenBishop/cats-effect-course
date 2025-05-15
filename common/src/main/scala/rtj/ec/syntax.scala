@@ -50,6 +50,7 @@ trait PkgSyntax {
     def dbg: IO[A] = io
       .flatTap(a => IO.println(s"[$threadName] $a"))
       .handleErrorWith(ex => IO.println(s"[$threadName] ${ex.name}(${ex.msg})") >> IO.raiseError(ex))
+    def dvoid: IO[Unit] = dbg.void
     def delay(millis: Long): IO[A] = IO(sleep(millis)) >> io
     def silence: IO[Unit] = io.attempt.void
 
@@ -58,8 +59,8 @@ trait PkgSyntax {
 
 
   def !? [A](msg: String): IO[A] = IO.err(msg)
-  def canceled = IO("Fiber canceled")
-  def !![A] = canceled.dbg >>= !?
+  def canceled: IO[String] = IO("Fiber canceled")
+  def !! : IO[Nothing] = canceled.dbg >>= !?
 }
 
 object syntax extends PkgSyntax
