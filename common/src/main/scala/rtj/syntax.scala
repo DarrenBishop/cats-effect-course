@@ -33,6 +33,10 @@ trait PkgSyntax {
 
   // Support for emptiness via Monoid
   def empty[T: Monoid]: T = Monoid[T].empty
+
+  // Partial function support
+  def partial[A, B](pf: PartialFunction[A, B]) = pf
+  def ?> [A, B](pf: PartialFunction[A, B]) = partial(pf)
 }
 
 object syntax extends PkgSyntax
