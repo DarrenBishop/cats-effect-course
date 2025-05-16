@@ -51,7 +51,8 @@ trait PkgSyntax {
       .flatTap(a => IO.println(s"[$threadName] $a"))
       .handleErrorWith(ex => IO.println(s"[$threadName] ${ex.name}(${ex.msg})") >> IO.raiseError(ex))
     def dvoid: IO[Unit] = dbg.void
-    def delay(millis: Long): IO[A] = IO(sleep(millis)) >> io
+    def delay(duration: FiniteDuration): IO[A] = IO.sleep(duration) >> io
+    def delay(millis: Long): IO[A] = delay(millis.millis) >> io
     def silence: IO[Unit] = io.attempt.void
 
   extension [C[_]: Foldable, A](io: IO[C[A]])
