@@ -7,6 +7,7 @@ import rtj.all.*
 
 import java.io.{File, FileWriter}
 import scala.io.Source
+import scala.util.Random
 
 /**
  * A CountDownLatch (CDL) is a coordination primitive initialized with a count.
@@ -58,20 +59,30 @@ object CountdownLatches extends IOApp.Simple {
     def getFileChunk(i: Int): IO[String] = IO(fileChunksList(i))
   }
 
+  def readerIO(fromPath: String) = Resource.make(IO(Source.fromFile(fromPath)))(source => IO(source.close()))
+
   def writeToFile(path: String, contents: String): IO[Unit] = Resource
     .make(IO(new FileWriter(new File(path))))(writer => IO(writer.close()))
     .use { writer => IO(writer.write(contents)) }
 
   def appendFileContents(fromPath: String, toPath: String): IO[Unit] = {
     val compositeResource = for {
-      reader <- Resource.make(IO(Source.fromFile(fromPath)))(source => IO(source.close()))
+      reader <- readerIO(fromPath)
       writer <- Resource.make(IO(new FileWriter(new File(toPath), true)))(writer => IO(writer.close()))
     } yield (reader, writer)
 
     compositeResource.use { (reader, writer) =>
-      IO(reader.getLines().foreach(writer.write))
+      IO(reader.getLines().map(_ + "\n").foreach(writer.write))
     }
   }
+
+  def downloadFilePart(part: String, partNum: Int, latch: CountDownLatch[IO]): IO[Unit] = for {
+    chunk <- FileServer.getFileChunk(partNum)
+    duration = Random.nextInt(1000).millis
+    _ <- IO.dbg(s"Download of part $part took $duration").delay(duration)
+    _ <- writeToFile(part, chunk)
+    _ <- latch.release
+  } yield ()
 
   /**
    *  - call file server API and get the number of chunks (n)
@@ -80,7 +91,31 @@ object CountdownLatches extends IOApp.Simple {
    *  - block on the latch until each task has finished
    *  - after all chunks are done, stitch the files together under the same file on disk
    */
-  def downloadFile(filename: String, destFolder: String): IO[Unit] = ???
+  def downloadFile(filename: String, destFolder: String): IO[Unit] = for {
+    numOfChunks <- FileServer.getNumChunks
+    path = s"$destFolder/$filename"
+    parts = (0 untilL numOfChunks).map { i => s"$path.part$i" -> i }
+    latch <- CountDownLatch[IO](numOfChunks)
+    _ <- parts.parTraverse { downloadFilePart(_, _, latch) }
+    _ <- latch.await
+    _ <- IO.dbg(s"All chunks downloaded; stitching to $filename...")
+    _ <- parts._1F.traverse { part =>
+      IO.dbg(s"...stitching $part") >> appendFileContents(part, path)
+    }
+  } yield ()
 
-  def run: IO[Unit] = sprint()
+  def demoDownloadFile: IO[Unit] = for {
+    tmp <- IO(getClass.getClassLoader.getResource(".").getFile).dbg
+    //tmp <- IO(Files.createTempDirectory("rock-the-jvm").toString).dbg
+    filename = "CountDownLatch"
+    filepath = s"$tmp/$filename"
+    _ <- IO(new File(filepath).delete)
+    _ <- downloadFile(filename, tmp)
+    _ <- IO.dbg(s"All chunks stitched; checking $filename...")
+    _ <- readerIO(s"$tmp/$filename")
+      .use { reader => IO(reader.getLines().foreach(println)) }
+  } yield ()
+
+  //def run: IO[Unit] = sprint()
+  def run: IO[Unit] = demoDownloadFile
 }
