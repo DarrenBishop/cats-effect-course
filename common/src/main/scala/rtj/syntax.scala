@@ -81,4 +81,3 @@ trait PkgSyntax {
 }
 
 object syntax extends PkgSyntax
-
