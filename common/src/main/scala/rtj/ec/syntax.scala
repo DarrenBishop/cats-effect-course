@@ -3,13 +3,8 @@ package rtj.ec
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success}
 
-import cats.Foldable
-import cats.effect.IO
-import cats.syntax.all.*
-
-
 trait PkgSyntax {
-  import rtj.syntax.*
+  import types.*
   
   def shutdownAll(): Unit = Context.shutdownAll()
 
@@ -36,32 +31,7 @@ trait PkgSyntax {
     case None => throw new IllegalStateException("This should never happen!")
   }
 
-  def threadName: String = Thread.currentThread().getName
-
   def sleep(millis: Long): Unit = Thread.sleep(millis)
-
-  extension (ioo: IO.type)
-    def dbg(any: => Any): IO[String] = IO(s"$any").dbg
-    def void(any: => Any): IO[Unit] = IO.dbg(s"$any").void
-    def err[A](msg: String): IO[A] = IO.raiseError[A](!??(msg))
-    def pass[A](f: (IO[A] => IO[A]) => IO[A]): IO[A] = f(identity)
-
-  extension [A](io: IO[A])
-    def dbg: IO[A] = io
-      .flatTap(a => IO.println(s"[$threadName] $a"))
-      .handleErrorWith(ex => IO.println(s"[$threadName] ${ex.name}(${ex.msg})") >> IO.raiseError(ex))
-    def dvoid: IO[Unit] = dbg.void
-    def delay(duration: FiniteDuration): IO[A] = IO.sleep(duration) >> io
-    def delay(millis: Long): IO[A] = delay(millis.millis) >> io
-    def silence: IO[Unit] = io.attempt.void
-
-  extension [C[_]: Foldable, A](io: IO[C[A]])
-    def sum(using Numeric[A]): IO[A] = io.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))
-
-
-  def !? [A](msg: String): IO[A] = IO.err(msg)
-  def canceled: IO[String] = IO("Fiber canceled")
-  def !! : IO[Nothing] = canceled.dbg >>= !?
 }
 
 object syntax extends PkgSyntax

@@ -1,3 +1,3 @@
 package rtj
 
-object predef extends ec.PkgAll with PkgSyntax
+object predef extends PkgSyntax, ec.PkgAll, ce.PkgSyntax 
