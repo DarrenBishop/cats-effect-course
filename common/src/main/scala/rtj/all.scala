@@ -1,5 +1,5 @@
 package rtj
 
-trait PkgAll extends ec.PkgAll
+trait PkgAll extends PkgSyntax, ec.PkgAll, ce.PkgSyntax
 
-object all extends PkgAll with PkgSyntax
+object all extends PkgAll

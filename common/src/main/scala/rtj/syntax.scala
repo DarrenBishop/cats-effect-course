@@ -5,10 +5,14 @@ import cats.effect.Sync
 import cats.effect.std.Random
 import cats.syntax.all.*
 
+import scala.collection.immutable.NumericRange
+
 trait PkgSyntax {
   export scala.concurrent.duration.DurationInt
   export scala.concurrent.duration.DurationLong
   export scala.concurrent.duration.DurationDouble
+
+  def threadName: String = Thread.currentThread().getName
 
   extension (err: Throwable)
     def name: String = err.getClass.getName
@@ -46,6 +50,10 @@ trait PkgSyntax {
 
   // List support
   def nil[E] = List.empty[E]
+
+  extension [N](a: N)
+    def toL(b: N)(using I: Integral[N]): List[N] = NumericRange.inclusive[N](a, b, I.one).toList
+    def untilL(b: N)(using I: Integral[N]): List[N] = NumericRange[N](a, b, I.one).toList
 
   // Support for emptiness via Monoid
   def empty[T: Monoid]: T = Monoid[T].empty
