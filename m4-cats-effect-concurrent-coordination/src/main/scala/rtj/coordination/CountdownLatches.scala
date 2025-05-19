@@ -119,3 +119,7 @@ object CountdownLatches extends IOApp.Simple {
   //def run: IO[Unit] = sprint()
   def run: IO[Unit] = demoDownloadFile
 }
+
+/**
+  * Exercise II: implement your own Count Down Latch with Ref and Deferred
+  */
