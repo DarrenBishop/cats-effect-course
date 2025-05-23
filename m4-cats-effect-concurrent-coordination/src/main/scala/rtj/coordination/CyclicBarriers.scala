@@ -1,15 +1,17 @@
 package rtj.coordination
 
-import cats.effect.{Concurrent, IO, IOApp}
+import cats.effect.{Concurrent, Deferred, IO, IOApp, Ref}
 import cats.syntax.all.*
 import rtj.all.{*, given}
 
 import scala.util.Random
 
 object CyclicBarriers extends IOApp.Simple {
-  
-  type CyclicBarrier[F[_]] = cats.effect.std.CyclicBarrier[F]
-  val CyclicBarrier = cats.effect.std.CyclicBarrier
+
+  //type CyclicBarrier[F[_]] = cats.effect.std.CyclicBarrier[F]
+  //val CyclicBarrier = cats.effect.std.CyclicBarrier
+  type CyclicBarrier[F[_]] = my.CyclicBarrier[F]
+  val CyclicBarrier = my.CyclicBarrier
 
   /*
       A cyclic barrier is a coordination primitive that
@@ -37,7 +39,11 @@ object CyclicBarriers extends IOApp.Simple {
   def openNetwork(): IO[Unit] = for {
     _ <- IO.dbg("[announcer] The Rock the JVM social network is up for registration! Launching when we have 10 users")
     barrier <- CyclicBarrier[IO](10)
-    _ <- (1 toL 20).parTraverse(createUser(_, barrier))
+    _ <- IO.dbg("[announcer] 1 to 14; 4 must wait")
+    _ <- (1 toL 14).parTraverse(createUser(_, barrier)).start
+    _ <- IO.sleep(4.seconds)
+    _ <- IO.dbg("[announcer] 15 to 20; let in the waiting 4")
+    _ <- (15 toL 20).parTraverse(createUser(_, barrier))
   } yield ()
 
   /**
@@ -45,14 +51,24 @@ object CyclicBarriers extends IOApp.Simple {
    */
 
   def run: IO[Unit] = openNetwork()
-}
 
-object ny {
-  trait CyclicBarrier[F[_]] {
-    def await: F[Unit]
-  }
-  
-  object CyclicBarrier {
-    def apply[F[_] : Concurrent](count: Int): F[CyclicBarrier[F]] = ??? 
+  object my {
+    trait CyclicBarrier[F[_]] {
+      def await: F[Unit]
+    }
+
+    object CyclicBarrier {
+      def apply[F[_] : Concurrent](n: Int): F[CyclicBarrier[F]] = for {
+        state <- Concurrent[F].pure(Deferred[F, Unit].map(_ -> n))
+        ref <- state.flatMap(Ref[F].of)
+      } yield new CyclicBarrier {
+        def await: F[Unit] =  state.flatMap { reset =>
+          ref.flatModify {
+            case (current, 1) => (reset, current.complete(()).void)
+            case (current, n) => ((current, n - 1), current.get)
+          }
+        }
+      }
+    }
   }
 }
