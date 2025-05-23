@@ -1,6 +1,7 @@
 object Versions {
   object Compiler {
-    val Scala = "3.6.4"
+    //val Scala = "3.6.4"
+    val Scala = "3.7.0"
     //val SemanticDB = "4.8.4" // ...because broken-Simulacrum (1.0.1) needs Scala 2.13.6 (yes, .6)
     val SemanticDB = "4.9.3" // otherwise, if not using Simulacrum
     val Paradise = "2.1.1"

@@ -3,7 +3,7 @@ package rtj.coordination
 import cats.effect.std.Semaphore
 import cats.effect.{IO, IOApp}
 import cats.syntax.all.*
-import rtj.all.*
+import rtj.all.{*, given}
 
 object Semaphores extends IOApp.Simple {
 

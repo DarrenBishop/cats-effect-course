@@ -1,9 +1,11 @@
 package rtj.coordination
 
-import cats.effect.std.CountDownLatch
-import cats.effect.{IO, IOApp, Resource}
+//import cats.effect.std.CountDownLatch
+import cats.effect.kernel.Concurrent
+import my.CountDownLatch
+import cats.effect.{Deferred, IO, IOApp, Ref, Resource}
 import cats.syntax.all.*
-import rtj.all.*
+import rtj.all.{*, given}
 
 import java.io.{File, FileWriter}
 import scala.io.Source
@@ -30,6 +32,7 @@ object CountdownLatches extends IOApp.Simple {
     _ <- IO.pause("1...")
     _ <- latch.release // gun firing
     _ <- IO.dbg("GO GO GO!")
+    //_ <- latch.release(IO.void("GO GO GO!").delay(200.millis)) // gun firing
   } yield ()
 
   def craeteRunner(id: Int, latch: CountDownLatch[IO]): IO[Unit] = for {
@@ -116,10 +119,32 @@ object CountdownLatches extends IOApp.Simple {
       .use { reader => IO(reader.getLines().foreach(println)) }
   } yield ()
 
-  //def run: IO[Unit] = sprint()
-  def run: IO[Unit] = demoDownloadFile
+  def run: IO[Unit] = sprint()
+  //def run: IO[Unit] = demoDownloadFile
 }
 
 /**
   * Exercise II: implement your own Count Down Latch with Ref and Deferred
   */
+object my {
+  trait CountDownLatch[F[_]] {
+    def release: F[Unit]
+    def release(effect: F[Unit]): F[Unit]
+    def await: F[Unit]
+  }
+
+  object CountDownLatch {
+    def apply[F[_]: {Concurrent, Uncancelable}](n: Int): F[CountDownLatch[F]] = for {
+      count <- Ref[F].of(n)
+      signal <- Deferred[F, Unit]
+    } yield new CountDownLatch {
+      def release(onReleased: F[Unit]): F[Unit] = count.flatModify {
+        //case 1 => (0, onReleased *> signal.complete(()).void)
+        case 1 => (0, signal.complete(()).void <* onReleased) // want an atomic-semantics on the modify-effects
+        case n => (n - 1, Concurrent[F].unit)
+      }.uncancelable
+      def release: F[Unit] = release(Concurrent[F].unit)
+      def await: F[Unit] = signal.get
+    }
+  }
+}

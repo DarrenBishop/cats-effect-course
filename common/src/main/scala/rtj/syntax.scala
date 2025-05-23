@@ -52,15 +52,16 @@ trait PkgSyntax {
   def nil[E] = List.empty[E]
 
   extension [N](a: N)
-    def toL(b: N)(using I: Integral[N]): List[N] = NumericRange.inclusive[N](a, b, I.one).toList
-    def untilL(b: N)(using I: Integral[N]): List[N] = NumericRange[N](a, b, I.one).toList
+    infix def toL(b: N)(using I: Integral[N]): List[N] = NumericRange.inclusive[N](a, b, I.one).toList
+    infix def untilL(b: N)(using I: Integral[N]): List[N] = NumericRange[N](a, b, I.one).toList
 
   // Support for emptiness via Monoid
   def empty[T: Monoid]: T = Monoid[T].empty
 
   // Partial function support
+  type ?>[A, B] = PartialFunction[A, B]
   def partial[A, B](pf: PartialFunction[A, B]) = pf
-  def ?> [A, B](pf: PartialFunction[A, B]) = partial(pf)
+  def ?>[A, B](pf: PartialFunction[A, B]) = partial(pf)
   
   // Given lambda support
   def givingly[G, R](g: G)(fu: G ?=> R): R = {
