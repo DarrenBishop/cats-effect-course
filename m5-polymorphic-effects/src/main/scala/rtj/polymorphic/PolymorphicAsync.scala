@@ -12,11 +12,15 @@ object PolymorphicAsync extends IOApp.Simple {
   object my {
     // Asynchronous computations, "suspended" in F
     trait Async[F[_]] extends Sync[F] with Temporal[F] {
+      // fundamental description of async computation
       def executionContext: F[ExecutionContext]
       def async[A](cb: (Either[Throwable, A] => Unit) => F[Option[F[Unit]]]): F[A]
-      def async_[A](cb: (Either[Throwable, A] => Unit) => Unit): F[A]
       def evalOn[A](fa: F[A], ec: ExecutionContext): F[A]
-      def never[A]: F[A] // never-ending effect
+
+      def async_[A](cb: (Either[Throwable, A] => Unit) => Unit): F[A] =
+        async { cb_ => as(delay(cb(cb_)), None) }
+      // never-ending effect
+      def never[A]: F[A] = async(_ => pure(None))
     }
   }
 
@@ -50,7 +54,7 @@ object PolymorphicAsync extends IOApp.Simple {
     IO {
       // start computation on some other thread pool
       threadPool.execute { () =>
-        println(s"[${threadName}] Computing an aync MOL")
+        println(s"[${threadName}] Computing an async MOL")
         cb(Right(42))
       }
     }.as(Some(IO("Canceled!").dvoid)) // <-- finalizer in case the computation gets canceled
@@ -60,7 +64,7 @@ object PolymorphicAsync extends IOApp.Simple {
     IO {
       // start computation on some other thread pool
       threadPool.execute { () =>
-        println(s"[${threadName}] Computing an aync MOL")
+        println(s"[${threadName}] Computing an async MOL")
         cb(Right(42))
       }
     }.as(Some(IO("Canceled!").dvoid)) // <-- finalizer in case the computation gets canceled
@@ -81,7 +85,10 @@ object PolymorphicAsync extends IOApp.Simple {
   def firstEffect[F[_]: Concurrent, A](a: A): F[A] = Concurrent[F].pure(a)
   def secondEffect[F[_]: Sync, A](a: A): F[A] = Sync[F].pure(a)
 
-  def tupledEffect[F[_], A](a: A): F[(A, A)] = ???
+  def tupledEffect[F[_]: Async, A](a: A): F[(A, A)] = for {
+    fe <- firstEffect(a)
+    se <- secondEffect(a)
+  } yield (fe, se)
 
-  def run: IO[Unit] = ???
+  def run: IO[Unit] = tupledEffect[IO, String]("I love Scala!").dvoid
 }
