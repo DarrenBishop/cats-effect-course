@@ -22,8 +22,8 @@ trait PkgSyntax {
     //  def pause(duration: FiniteDuration): F[A] = sleep(duration)
     //  def delay(duration: FiniteDuration): F[A] = aux(duration) >> fa
     //  def delay(millis: Long): F[A] = delay(millis.millis)
-
-    case class Ops[A](fa: F[A]):
+    
+    class Ops[A](fa: F[A]):
       def sleep(duration: FiniteDuration): F[A] = fa <* aux(duration)
       def sleep(millis: Long): F[A] = sleep(millis.millis)
       def pause(duration: FiniteDuration): F[A] = sleep(duration)
@@ -50,7 +50,7 @@ trait PkgSyntax {
     //  def uncancelable: F[A]
     protected def aux[A](fa: F[A]): F[A]
     
-    case class Ops[A](fa: F[A]):
+    class Ops[A](fa: F[A]):
       def uncancelable: F[A] = aux(fa)
 
     inline def apply[A](fa: F[A]): Ops[A] = Ops(fa)
@@ -77,7 +77,7 @@ trait PkgSyntax {
     given MonadThrow[F] = deferred
     given C: Console[F] = deferred
     
-    case class Ops[A](fa: F[A]):
+    class Ops[A](fa: F[A]):
       def dbg: F[A] = fa
         .flatTap(a => C.println(s"[$threadName] $a"))
         .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> ex.raiseError)
@@ -89,9 +89,6 @@ trait PkgSyntax {
     extension [A](fa: F[A])
       private inline def ops = apply(fa)
       export ops.*
-      //def dbg: F[A]
-      //def dvoid: F[Unit]
-      //def silence: F[Unit]
   }
   
   object Debug {
@@ -101,33 +98,45 @@ trait PkgSyntax {
     given [F[_]] => (MonadThrow[F], Console[F]) => Debug[F]:
       override given MonadThrow[F] = MonadThrow[F]
       override given C: Console[F] = Console[F]
+    
+    given Debug[IO]:
+      given MonadThrow[IO] = MonadThrow[IO]
+      override given C: Console[IO] = Console[IO]
   }
 
-  extension [F[_], A](fa: F[A])(using U: Uncancelable[F])
-    //def uncancelable: F[A] = U.uncancelable(fa)
+  //extension [F[_], A](fa: F[A])(using U: Uncancelable[F])
+  //  //def uncancelable: F[A] = U.uncancelable(fa)
+  //  private def u: U.Ops[A] = U(fa)
+  //  export u.*
+  //
+  //extension [F[_], A](fa: F[A])(using S: Sleep[F])
+  //  //def sleep(duration: FiniteDuration): F[A] = S.sleep(fa)(duration)
+  //  //def sleep(millis: Long): F[A] = sleep(millis.millis)
+  //  //def pause(duration: FiniteDuration): F[A] = sleep(duration)
+  //  //def delay(duration: FiniteDuration): F[A] = S.delay(fa)(duration)
+  //  //def delay(millis: Long): F[A] = delay(millis.millis)
+  //  private def s: S.Ops[A] = S(fa)
+  //  export s.*
+  //
+  ////extension [F[_], A](fa: F[A])(using M: MonadThrow[F], C: Console[F])
+  ////  def dbg: F[A] = fa
+  ////    .flatTap(a => C.println(s"[$threadName] $a"))
+  ////    .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> M.raiseError(ex))
+  ////  def dvoid: F[Unit] = dbg.void
+  ////  def silence: F[Unit] = fa.attempt.void
+  //
+  //extension [F[_], A](fa: F[A])(using D: Debug[F])
+  //  private inline def d: D.Ops[A] = D(fa)
+  //  export d.*
+
+  extension [F[_], A](fa: F[A])(using U: Uncancelable[F], S: Sleep[F], D: Debug[F])
     private def u: U.Ops[A] = U(fa)
     export u.*
-
-  extension [F[_], A](fa: F[A])(using S: Sleep[F])
-    //def sleep(duration: FiniteDuration): F[A] = S.sleep(fa)(duration)
-    //def sleep(millis: Long): F[A] = sleep(millis.millis)
-    //def pause(duration: FiniteDuration): F[A] = sleep(duration)
-    //def delay(duration: FiniteDuration): F[A] = S.delay(fa)(duration)
-    //def delay(millis: Long): F[A] = delay(millis.millis)
     private def s: S.Ops[A] = S(fa)
     export s.*
-
-  //extension [F[_], A](fa: F[A])(using M: MonadThrow[F], C: Console[F])
-  //  def dbg: F[A] = fa
-  //    .flatTap(a => C.println(s"[$threadName] $a"))
-  //    .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> M.raiseError(ex))
-  //  def dvoid: F[Unit] = dbg.void
-  //  def silence: F[Unit] = fa.attempt.void
-
-  extension [F[_], A](fa: F[A])(using D: Debug[F])
-    private inline def ops: D.Ops[A] = D(fa)
-    export ops.*
-
+    private inline def d: D.Ops[A] = D(fa)
+    export d.*
+  
   extension [F[_]: Functor, C[_]: Foldable, A](fca: F[C[A]])
     def sum(using Numeric[A]): F[A] = fca.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))
   
