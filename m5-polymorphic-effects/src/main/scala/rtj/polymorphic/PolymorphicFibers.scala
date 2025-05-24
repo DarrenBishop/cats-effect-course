@@ -23,7 +23,7 @@ object PolymorphicFibers extends IOApp.Simple {
 
     trait Spawn[F[_]] extends GenSpawn[F, Throwable]
   }
-  
+
   val  mol = IO(42)
   val fiber: IO[Fiber[IO, Throwable, Int]] = mol.start
   
@@ -48,23 +48,47 @@ object PolymorphicFibers extends IOApp.Simple {
   /**
    *    Exercise: generalize the following code
    */
-  def simpleRace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] =
-    IO.racePair(ioa, iob).flatMap {
-      case Left((Succeeded(ioa), fiber)) => fiber.cancel *> ioa.map(Left(_))
-      case Left((Errored(err), fiber)) => fiber.cancel *> IO.raiseError(err)
+  def generalRace[F[_], A, B](fa: F[A], fb: F[B])(using S: Spawn[F]): F[Either[A, B]] =
+    S.racePair(fa, fb).flatMap {
+      case Left((Succeeded(winner), fiber)) => fiber.cancel >> winner.map(Left(_))
+      case Left((Errored(err), fiber)) => fiber.cancel >> S.raiseError(err)
       case Left((Canceled(), fiber)) => fiber.join.flatMap {
         case Succeeded(loser) => loser.map(Right(_))
-        case Errored(err) => IO.raiseError(err)
-        case Canceled() => !?("both canceled")
+        case Errored(err) => S.raiseError(err)
+        case Canceled() => S.raiseError(!??("both canceled"))
       }
-      case Right((fiber, Succeeded(iob))) => fiber.cancel *> iob.map(Right(_))
-      case Right((fiber, Errored(err))) => fiber.cancel *> IO.raiseError(err)
+      case Right((fiber, Succeeded(winner))) => fiber.cancel >> winner.map(Right(_))
+      case Right((fiber, Errored(err))) => fiber.cancel >> S.raiseError(err)
       case Right((fiber, Canceled())) => fiber.join.flatMap {
         case Succeeded(loser) => loser.map(Left(_))
-        case Errored(err) => IO.raiseError(err)
-        case Canceled() => !?("both canceled")
+        case Errored(err) => S.raiseError(err)
+        case Canceled() => S.raiseError(!??("both canceled"))
       }
     }
 
-  def run: IO[Unit] = molOnFiber_v2.dvoid
+  def testGeneralRace() = for {
+    _ <- generalRace(IO.dbg("first slow").delayBy(100.millis), IO.dbg("second success")).dbg.void
+
+    //_ <- generalRace(!?("first failure").dbg, IO.dbg("second success").delayBy(100.millis)).dbg.void
+    //_ <- generalRace(!?("first failure").dbg, !?("second failure").dbg.delayBy(100.millis)).dbg.silence
+    //_ <- generalRace(!?("first failure").dbg, IO.dbg("second canceled") *> IO.canceled.delayBy(100.millis)).dbg.silence
+
+    //_ <- generalRace(IO.dbg("first canceled") *> IO.canceled, IO.dbg("second success").delayBy(100.millis)).dbg.void
+    //_ <- generalRace(IO.dbg("first canceled") *> IO.canceled, !?("second failure").dbg.delayBy(100.millis)).dbg.silence
+    //_ <- generalRace(IO.dbg("first canceled") *> IO.canceled, IO.dbg("second canceled") *> IO.canceled.delayBy(100.millis)).dbg.silence
+
+    //_ <- generalRace(IO.sleep(100.millis).guarantee(IO.dbg("first canceled").void), IO.dbg("second operation")).dbg.void
+
+    _ <- generalRace(IO.dbg("first slow success").delayBy(100.millis), !?("second failure").dbg).dbg.silence
+    _ <- generalRace(!?("first slow failure").dbg.delayBy(100.millis), !?("second failure").dbg).dbg.silence
+    _ <- generalRace(IO.dbg("first slow canceled").delayBy(100.millis) *> IO.canceled, !?("second failure").dbg).dbg.silence
+
+    //_ <- generalRace(IO.dbg("first success").delayBy(100.millis), IO.dbg("second canceled") *> IO.canceled).dbg.void
+    //_ <- generalRace(!?("first failure").dbg.delayBy(100.millis), IO.dbg("second canceled") *> IO.canceled).dbg.silence
+    //_ <- generalRace(IO.dbg("first canceled") *> IO.canceled.delayBy(100.millis), IO.dbg("second canceled") *> IO.canceled).dbg.silence
+
+  } yield ()
+
+  //def run: IO[Unit] = molOnFiber_v2.dvoid
+  def run: IO[Unit] = testGeneralRace()
 }
