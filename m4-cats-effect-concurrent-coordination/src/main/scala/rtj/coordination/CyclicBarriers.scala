@@ -2,7 +2,7 @@ package rtj.coordination
 
 import cats.effect.{Concurrent, Deferred, IO, IOApp, Ref}
 import cats.syntax.all.*
-import rtj.all.{*, given}
+import rtj.all.*
 
 import scala.util.Random
 
@@ -11,7 +11,7 @@ object CyclicBarriers extends IOApp.Simple {
   //type CyclicBarrier[F[_]] = cats.effect.std.CyclicBarrier[F]
   //val CyclicBarrier = cats.effect.std.CyclicBarrier
   type CyclicBarrier[F[_]] = my.CyclicBarrier[F]
-  val CyclicBarrier = my.CyclicBarrier
+  val CyclicBarrier: my.CyclicBarrier.type = my.CyclicBarrier
 
   /*
       A cyclic barrier is a coordination primitive that

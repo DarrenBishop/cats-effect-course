@@ -45,7 +45,10 @@ lazy val `cats-effect-course` = (project in file("."))
   .aggregate(
     common,
     `m1-introduction`,
-    `m2-effects-and-io`
+    `m2-effects-and-io`,
+    `m3-cats-effect-concurrency`,
+    `m4-cats-effect-concurrent-coordination`,
+    `m5-polymorphic-effects`
   )
 
 lazy val common = project
@@ -72,6 +75,12 @@ lazy val `m3-cats-effect-concurrency` = project
   )
 
 lazy val `m4-cats-effect-concurrent-coordination` = project
+  .dependsOn(common)
+  .settings(
+    scalacOptions ++= scalacOptionsTask.value
+  )
+
+lazy val `m5-polymorphic-effects` = project
   .dependsOn(common)
   .settings(
     scalacOptions ++= scalacOptionsTask.value

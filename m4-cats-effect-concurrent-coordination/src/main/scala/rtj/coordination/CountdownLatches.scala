@@ -1,11 +1,9 @@
 package rtj.coordination
 
-//import cats.effect.std.CountDownLatch
 import cats.effect.kernel.Concurrent
-import my.CountDownLatch
 import cats.effect.{Deferred, IO, IOApp, Ref, Resource}
 import cats.syntax.all.*
-import rtj.all.{*, given}
+import rtj.all.*
 
 import java.io.{File, FileWriter}
 import scala.io.Source
@@ -18,6 +16,11 @@ import scala.util.Random
  * When the internal count of the latch reaches 0 (via release() calls from other fibers), all waiting fibers are unblocked.
  */
 object CountdownLatches extends IOApp.Simple {
+
+  //type CountDownLatch[F[_]] = cats.effect.std.CountDownLatch[F]
+  //val CountDownLatch = cats.effect.std.CountDownLatch
+  type CountDownLatch[F[_]] = my.CountDownLatch[F]
+  val CountDownLatch: my.CountDownLatch.type = my.CountDownLatch
 
   def announcer(latch: CountDownLatch[IO]): IO[Unit] = for {
     _ <- IO.pause("Starting race shortly...", 2.seconds)
