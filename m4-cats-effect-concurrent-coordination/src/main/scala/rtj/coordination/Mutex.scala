@@ -11,6 +11,13 @@ import scala.util.Random
 abstract class Mutex {
   def acquire: IO[Unit]
   def release: IO[Unit]
+
+  def loan[A](ioa: IO[A]): IO[A] = IO.uncancelable { poll =>
+    for {
+      _ <- acquire
+      a <- poll(ioa).onCancel(IO.dbg("canceled while mutex on loan; releasing") >> release)
+    } yield a
+  }
 }
 
 object Mutex extends IOApp.Simple {
@@ -28,7 +35,7 @@ object Mutex extends IOApp.Simple {
       for {
         signal <- IO.deferred[Unit]
         cleanup = state.flatModify {
-          case State(locked, queue) => State(locked, queue.filterNot(_ eq signal)) -> (IO.dbg("cleanup") >> release)
+          case State(locked, queue) => State(locked, queue.filterNot(_ eq signal)) -> IO.void("cleaned-up!")
         }
         pf = ?> {
           case State(false, _) => State(true, Queue()) -> IO.unit
@@ -136,7 +143,20 @@ object Mutex extends IOApp.Simple {
 
   def demoCancellingTask(): IO[List[Int]] = mutex { mtx => ids.parTraverse(createCancellingTask(_, mtx)) }
 
+  def demoCancelWhileBlocked() = for {
+    mutex <- Mutex.create
+    fib1 <- (IO.dbg("[fib1] getting mutex") >> mutex.acquire >> IO.dbg("[fib1] acquired mutex; never releasing") >> IO.never).onCancel(IO.void("[fib1] canceled!!!")).start
+    //fib1 <- (IO.dbg("[fib1] getting mutex") >> mutex.loan { IO.dbg("[fib1] acquired mutex; never releasing") >> IO.never }).onCancel(IO.void("[fib1] canceled!!!")).start
+    fib2 <- (IO.dbg("[fib2] sleeping") >> IO.sleep(1000.millis) >> IO.dbg("[fib2] trying to get mutex") >> mutex.acquire >> IO.dbg("[fib2] acquired mutex")).start
+    fib3 <- (IO.dbg("[fib3] sleeping") >> IO.sleep(1500.millis) >> IO.dbg("[fib3] trying to get mutex") >> mutex.acquire >> IO.dbg("[fib3] acquired mutex (impossible!!!)")).start
+    _ <- IO.sleep(2.seconds) >> IO.dbg("CANCELLING fib-1") >> fib1.cancel
+    _ <- fib1.join
+    _ <- fib2.join
+    _ <- fib3.join
+  } yield ()
+
   //def run: IO[Unit] = demoNonLockingTask().dvoid
   //def run: IO[Unit] = demoLockingTask().dvoid
-  def run: IO[Unit] = demoCancellingTask().dvoid
+  //def run: IO[Unit] = demoCancellingTask().dvoid
+  def run: IO[Unit] = demoCancelWhileBlocked()
 }

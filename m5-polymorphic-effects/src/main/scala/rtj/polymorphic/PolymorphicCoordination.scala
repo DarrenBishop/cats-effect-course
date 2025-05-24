@@ -22,6 +22,13 @@ object PolymorphicCoordination extends IOApp.Simple {
     trait Mutex[F[_]] {
       def acquire: F[Unit]
       def release: F[Unit]
+
+      def loan[A](fa: F[A])(using F: FlatMap[F], C: Concurrent[F], D: Debug[F]): F[A] = C.uncancelable { poll =>
+        for {
+          _ <- acquire
+          a <- poll(fa).onCancel("canceled while mutex on loan; releasing".pure.dbg >> release)
+        } yield a
+      }
     }
 
     object Mutex {
@@ -42,7 +49,7 @@ object PolymorphicCoordination extends IOApp.Simple {
             for {
               signal <- C.deferred[Unit]
               cleanup = state.flatModify {
-                case State(locked, queue) => State(locked, queue.filterNot(_ eq signal)) -> ("cleanup".pure.dbg >> release)
+                case State(locked, queue) => State(locked, queue.filterNot(_ eq signal)) -> "cleanup".pure.dbg.void
               }
               pf: (State[F] ?> (State[F], F[Unit])) = ?> {
                 case State(false, _) => State(true, Queue()) -> C.unit
@@ -158,8 +165,21 @@ object PolymorphicCoordination extends IOApp.Simple {
 
   def demoCancellingTask[F[_]: {Concurrent, Parallel, Debug, Sleep}]: F[List[Int]] = my.mutex { mtx => ids.parTraverse(createCancellingTask(_, mtx)) }
 
+  def demoCancelWhileBlocked() = for {
+    mutex <- my.Mutex.create[IO]
+    fib1 <- (IO.dbg("[fib1] getting mutex") >> mutex.acquire >> IO.dbg("[fib1] acquired mutex; never releasing") >> IO.never).onCancel(IO.void("[fib1] canceled!!!")).start
+    //fib1 <- (IO.dbg("[fib1] getting mutex") >> mutex.loan { IO.dbg("[fib1] acquired mutex; never releasing") >> IO.never }).onCancel(IO.void("[fib1] canceled!!!")).start
+    fib2 <- (IO.dbg("[fib2] sleeping") >> IO.sleep(1000.millis) >> IO.dbg("[fib2] trying to get mutex") >> mutex.acquire >> IO.dbg("[fib2] acquired mutex")).start
+    fib3 <- (IO.dbg("[fib3] sleeping") >> IO.sleep(1500.millis) >> IO.dbg("[fib3] trying to get mutex") >> mutex.acquire >> IO.dbg("[fib3] acquired mutex (impossible!!!)")).start
+    _ <- IO.sleep(2.seconds) >> IO.dbg("CANCELLING fib-1") >> fib1.cancel
+    _ <- fib1.join
+    _ <- fib2.join
+    _ <- fib3.join
+  } yield ()
+
   //def run: IO[Unit] = polymorphicAlarm[IO]
   //def run: IO[Unit] = generalRacePair(IO.sleep(750.millis) >> IO("IO-A succeeded"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.void
   //def run: IO[Unit] = generalRacePair(IO.sleep(1000.millis) >> !?("IO-A errored"), IO.sleep(500.millis) >> IO("IO-B succeeded")).dbg.start >>= (fib => IO.sleep(250.millis) >> fib.cancel)
-  def run: IO[Unit] = demoCancellingTask[IO].dvoid
+  //def run: IO[Unit] = demoCancellingTask[IO].dvoid
+  def run: IO[Unit] = demoCancelWhileBlocked()
 }
