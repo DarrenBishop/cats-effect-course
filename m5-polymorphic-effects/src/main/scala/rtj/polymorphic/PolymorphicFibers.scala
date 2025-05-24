@@ -45,5 +45,26 @@ object PolymorphicFibers extends IOApp.Simple {
   val molOnFiber = ioOnSomeThread(mol)
   val molOnFiber_v2 = effectOnSomeThread(mol)
 
+  /**
+   *    Exercise: generalize the following code
+   */
+  def simpleRace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] =
+    IO.racePair(ioa, iob).flatMap {
+      case Left((Succeeded(ioa), fiber)) => fiber.cancel *> ioa.map(Left(_))
+      case Left((Errored(err), fiber)) => fiber.cancel *> IO.raiseError(err)
+      case Left((Canceled(), fiber)) => fiber.join.flatMap {
+        case Succeeded(loser) => loser.map(Right(_))
+        case Errored(err) => IO.raiseError(err)
+        case Canceled() => !?("both canceled")
+      }
+      case Right((fiber, Succeeded(iob))) => fiber.cancel *> iob.map(Right(_))
+      case Right((fiber, Errored(err))) => fiber.cancel *> IO.raiseError(err)
+      case Right((fiber, Canceled())) => fiber.join.flatMap {
+        case Succeeded(loser) => loser.map(Left(_))
+        case Errored(err) => IO.raiseError(err)
+        case Canceled() => !?("both canceled")
+      }
+    }
+
   def run: IO[Unit] = molOnFiber_v2.dvoid
 }
