@@ -1,24 +1,23 @@
-# Polymorphic Fibers
+# Polymorphic Coordination
 
-## Spawn = the ability to create any effects on fibers
+## Concurrent = the ability to create concurrency primitives
+
+- `Ref` and `Deferred` are the basic primitives
+- Can create everything else in terms of them (e.g. `Mutex`, `CyclicBarrier`, `CountDownLatch`, etc)
 
 ```scala 3 mdoc:invisible
 import rtj.all.{*, given}
-import cats.effect.{Fiber, MonadCancel, Outcomel}
+import cats.effect.{Deferred, Ref, Spawn}
 ```
 
 ```scala 3 mdoc
-trait GenSpawn[F[_], E] extends MonadCancel[F, E] {
-  def start[A](fa: F[A]): F[Fiber[F, E, A]] // creates a fiber
-  def never[A]: F[A] // a forever-suspending effect
-  def cede: F[Unit] // a "yield" effect
-
-  def racePair[A, B](fa: F[A], fb: F[B]): F[Either[ // fundamental racing
-    (Outcome[F, E, A], Fiber[F, E, B]),
-    (Fiber[F, E, A], Outcome[F, E, B])
-  ]]
+trait Concurrent[F[_]] extends Spawn[F] {
+  def ref[A](a: A): F[Ref[F, A]]
+  def deferred[A]: F[Deferred[F, A]]
 }
 ```
+
+### Goal: generalize concurrent code for any effect type
 
 # Type Class Hierarchy
 
@@ -60,10 +59,14 @@ flowchart BT
     _cede_
     _racePair_`")
     S --> MC
+    C("`**Concurrent**
+    _ref_
+    _deferred_`")
+    C --> S
     
     classDef CATS fill:#afd19f,stroke:#96b389,stroke-width:1px,color:black
     classDef CE fill:#f4b083,stroke:#d1b39f,stroke-width:1px,color:black
-
+    
     class F,A,FM,AP,M,AE,ME CATS
-    class MC,S CE
+    class MC,S,C CE
 ```
