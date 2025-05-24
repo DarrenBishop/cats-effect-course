@@ -1,6 +1,6 @@
 package rtj.polymorphic
 
-import cats.effect.{Async, IO, IOApp, MonadCancel, Resource, Sync, Temporal}
+import cats.effect.{Async, Concurrent, IO, IOApp, MonadCancel, Resource, Sync, Temporal}
 import cats.syntax.all.*
 import rtj.all.*
 
@@ -71,6 +71,17 @@ object PolymorphicAsync extends IOApp.Simple {
 
   // never
   val neverIO = asyncIO.never
+
+  /**
+   *  Exercises
+   *    1 - implement never and async_ in terms of the big async.
+   *    2 - tuple two effects with different requirements
+   */
+
+  def firstEffect[F[_]: Concurrent, A](a: A): F[A] = Concurrent[F].pure(a)
+  def secondEffect[F[_]: Sync, A](a: A): F[A] = Sync[F].pure(a)
+
+  def tupledEffect[F[_], A](a: A): F[(A, A)] = ???
 
   def run: IO[Unit] = ???
 }
