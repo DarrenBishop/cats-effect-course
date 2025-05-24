@@ -30,7 +30,7 @@ trait PkgSyntax {
       def delay(duration: FiniteDuration): F[A] = aux(duration) >> fa
       def delay(millis: Long): F[A] = delay(millis.millis)
 
-    inline def apply[A](fa: F[A]): Ops[A] = Ops[A](fa)
+    inline def apply[A](fa: F[A]): Ops[A] = Ops(fa)
 
     extension [A](fa: F[A])
       private def ops = apply(fa)
@@ -39,6 +39,7 @@ trait PkgSyntax {
   
   object Sleep {
     def apply[F[_]](using ev: Sleep[F]): Sleep[F] = ev
+    
     given Sleep[IO]:
       given FlatMap[IO] = FlatMap[IO]
       protected def aux(duration: FiniteDuration): IO[Unit] = IO.sleep(duration)
@@ -52,7 +53,7 @@ trait PkgSyntax {
     case class Ops[A](fa: F[A]):
       def uncancelable: F[A] = aux(fa)
 
-    inline def apply[A](fa: F[A]): Ops[A] = Ops[A](fa)
+    inline def apply[A](fa: F[A]): Ops[A] = Ops(fa)
 
     extension [A](fa: F[A])
       private inline def ops = apply(fa)
@@ -72,24 +73,35 @@ trait PkgSyntax {
     //    def uncancelable: IO[A] = IO.uncancelable(_ => ioa)
   }
 
-  //trait Debug[F[_]] {
-  //  extension [A](fa: F[A])
-  //    def dbg: F[A]
-  //    def dvoid: F[Unit]
-  //    def silence: F[Unit]
-  //}
-  //object Debug {
-  //  def apply[F[_]](using ev: Debug[F]): Debug[F] = ev
-  //  given [F[_]] => (M: MonadThrow[F], C: Console[F]) => Debug[F]:
-  //    extension [A](fa: F[A])
-  //      def dbg: F[A] = fa
-  //        .flatTap(a => C.println(s"[$threadName] $a"))
-  //        .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> M.raiseError(ex))
-  //      def dvoid: F[Unit] = dbg.void
-  //      def silence: F[Unit] = fa.attempt.void
-  //      
-  //  given Debug[IO] = apply
-  //}
+  trait Debug[F[_]] {
+    given MonadThrow[F] = deferred
+    given C: Console[F] = deferred
+    
+    case class Ops[A](fa: F[A]):
+      def dbg: F[A] = fa
+        .flatTap(a => C.println(s"[$threadName] $a"))
+        .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> ex.raiseError)
+      def dvoid: F[Unit] = dbg.void
+      def silence: F[Unit] = fa.attempt.void
+
+    inline def apply[A](fa: F[A]): Ops[A] = Ops(fa) 
+    
+    extension [A](fa: F[A])
+      private inline def ops = apply(fa)
+      export ops.*
+      //def dbg: F[A]
+      //def dvoid: F[Unit]
+      //def silence: F[Unit]
+  }
+  
+  object Debug {
+    def apply[F[_]](using ev: Debug[F]): Debug[F] = ev
+    def apply[F[_], A](fa: F[A])(using ev: Debug[F]): ev.Ops[A] = ev(fa)
+    
+    given [F[_]] => (MonadThrow[F], Console[F]) => Debug[F]:
+      override given MonadThrow[F] = MonadThrow[F]
+      override given C: Console[F] = Console[F]
+  }
 
   extension [F[_], A](fa: F[A])(using U: Uncancelable[F])
     //def uncancelable: F[A] = U.uncancelable(fa)
@@ -105,19 +117,23 @@ trait PkgSyntax {
     private def s: S.Ops[A] = S(fa)
     export s.*
 
-  extension [F[_], A](fa: F[A])(using M: MonadThrow[F], C: Console[F])
-    def dbg: F[A] = fa
-      .flatTap(a => C.println(s"[$threadName] $a"))
-      .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> M.raiseError(ex))
-    def dvoid: F[Unit] = dbg.void
-    def silence: F[Unit] = fa.attempt.void
+  //extension [F[_], A](fa: F[A])(using M: MonadThrow[F], C: Console[F])
+  //  def dbg: F[A] = fa
+  //    .flatTap(a => C.println(s"[$threadName] $a"))
+  //    .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> M.raiseError(ex))
+  //  def dvoid: F[Unit] = dbg.void
+  //  def silence: F[Unit] = fa.attempt.void
+
+  extension [F[_], A](fa: F[A])(using D: Debug[F])
+    private inline def ops: D.Ops[A] = D(fa)
+    export ops.*
 
   extension [F[_]: Functor, C[_]: Foldable, A](fca: F[C[A]])
     def sum(using Numeric[A]): F[A] = fca.map(Foldable[C].foldLeft(_, Numeric[A].zero)(Numeric[A].plus))
   
   implicit def durationToSleep(d: FiniteDuration): IO[Unit] = IO.sleep(d)
 
-  extension (ioo: IO.type)(using Sleep[IO])
+  extension (ioo: IO.type)(using Sleep[IO], Debug[IO])
     def dbg(any: => Any): IO[String] = IO(s"$any").dbg
     def void(any: => Any): IO[Unit] = dbg(any).void
     def pause(any: => Any, duration: FiniteDuration = 1.second): IO[Unit] = void(any).pause(duration)

@@ -69,6 +69,36 @@ object PolymorphicCancellation extends IOApp.Simple {
   } { 
     _ => IO.void("Releasing the meaning of life")
   }
+
+  /**
+   *    Exercise: generalize a piece of code
+   */
+  val inputPassword: IO[String] =
+    IO.dbg("Input password") >>
+      IO.dbg("(typing password)") >>
+      IO.sleep(2000.millis) >>
+      IO("RockTheJVM123!")
+
+  val verifyPassword: String => IO[Boolean] = { (password: String) =>
+    IO.dbg("verifying...") >>
+      IO.sleep(2000.millis) >>
+      IO(password == "RockTheJVM123!")
+  }
+
+  val authFlow: IO[Unit] = IO.uncancelable { poll =>
+    for {
+      pw <- poll(inputPassword).onCancel(IO.void("Authentication timed out. Try again later!")) // this is cancelable
+      verified <- verifyPassword(pw) // this is NOT cancelable
+      _ <- if (verified) IO.dbg("Authentication successful.") else IO.dbg("Authentication failed!") // this is NOT cancelable
+    } yield ()
+  }
+
+  val authProgram = for {
+    authFib <- authFlow.start
+    _ <- IO.sleep(3.seconds) >> IO.dbg("Authentication timeout, attempting cancel...") >> authFib.cancel
+    _ <- authFib.join
+  } yield ()
   
-  def run: IO[Unit] = aComputationWithBracket
+  //def run: IO[Unit] = aComputationWithBracket
+  def run: IO[Unit] = authProgram
 }
