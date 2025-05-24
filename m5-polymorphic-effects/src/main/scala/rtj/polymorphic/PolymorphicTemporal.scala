@@ -16,7 +16,7 @@ object PolymorphicTemporal extends IOApp.Simple {
       def sleep(time: FiniteDuration): F[Unit] // semantically blocks this fiber for a specified time
     }
 
-    // capabilities: pure, map/flatmap, raiseError, uncancelable, start, ref/deferred, + sleep
+    // capabilities: pure, map/flatMap, raiseError, uncancelable, start, ref/deferred, + sleep
 
     val temporalIO = Temporal[IO] // given Temporal[IO] in scope
     val chainOIfEffects = IO.dbg("Loading...") >> IO.sleep(1.second) >> IO.dbg("Game ready!")
