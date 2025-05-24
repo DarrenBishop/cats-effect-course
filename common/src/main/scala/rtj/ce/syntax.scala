@@ -2,9 +2,8 @@ package rtj
 package ce
 
 import scala.concurrent.duration.FiniteDuration
-import scala.util.{Failure, Success}
-import cats.{FlatMap, Foldable, Functor, Monad, MonadThrow}
-import cats.effect.{IO, MonadCancel}
+import cats.{FlatMap, Foldable, Functor, MonadThrow}
+import cats.effect.{IO, MonadCancel, Temporal}
 import cats.effect.std.Console
 import cats.syntax.all.*
 
@@ -39,10 +38,14 @@ trait PkgSyntax {
   
   object Sleep {
     def apply[F[_]](using ev: Sleep[F]): Sleep[F] = ev
-    
-    given Sleep[IO]:
-      given FlatMap[IO] = FlatMap[IO]
-      protected def aux(duration: FiniteDuration): IO[Unit] = IO.sleep(duration)
+
+    given [F[_]] => (T: Temporal[F]) => Sleep[F]:
+      override given FlatMap[F] = T
+      protected def aux(duration: FiniteDuration): F[Unit] = T.sleep(duration)
+
+    //given Sleep[IO]:
+    //  given FlatMap[IO] = FlatMap[IO]
+    //  protected def aux(duration: FiniteDuration): IO[Unit] = IO.sleep(duration)
   }
 
   trait Uncancelable[F[_]] { tc =>
@@ -75,12 +78,12 @@ trait PkgSyntax {
 
   trait Debug[F[_]] {
     given MonadThrow[F] = deferred
-    given C: Console[F] = deferred
+    def println(any: Any): F[Unit]
     
     class Ops[A](fa: F[A]):
       def dbg: F[A] = fa
-        .flatTap(a => C.println(s"[$threadName] $a"))
-        .handleErrorWith(ex => C.println(s"[$threadName] ${ex.name}(${ex.msg})") >> ex.raiseError)
+        .flatTap(a => println(s"[$threadName] $a"))
+        .handleErrorWith(ex => println(s"[$threadName] ${ex.name}(${ex.msg})") >> ex.raiseError)
       def dvoid: F[Unit] = dbg.void
       def silence: F[Unit] = fa.attempt.void
 
@@ -93,15 +96,14 @@ trait PkgSyntax {
   
   object Debug {
     def apply[F[_]](using ev: Debug[F]): Debug[F] = ev
-    def apply[F[_], A](fa: F[A])(using ev: Debug[F]): ev.Ops[A] = ev(fa)
     
     given [F[_]] => (MonadThrow[F], Console[F]) => Debug[F]:
       override given MonadThrow[F] = MonadThrow[F]
-      override given C: Console[F] = Console[F]
+      def println(any: Any): F[Unit] = Console[F].println(any)
     
-    given Debug[IO]:
-      given MonadThrow[IO] = MonadThrow[IO]
-      override given C: Console[IO] = Console[IO]
+    //given Debug[IO]:
+    //  given MonadThrow[IO] = MonadThrow[IO]
+    //  def println(any: Any): IO[Unit] = Console[IO].println(any)
   }
 
   //extension [F[_], A](fa: F[A])(using U: Uncancelable[F])

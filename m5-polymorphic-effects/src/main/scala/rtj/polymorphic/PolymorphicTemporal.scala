@@ -29,8 +29,13 @@ object PolymorphicTemporal extends IOApp.Simple {
   def timeout[A](io: IO[A], duration: FiniteDuration): IO[A] =
     IO.race(IO.sleep(duration).map(_ => !??("computation timed out!")), io).rethrow
 
+  def generalTimeout[F[_], A](fa: F[A], duration: FiniteDuration)(using T: Temporal[F]): F[A] =
+    T.race(T.sleep(duration).as(!??("computation timed out!")), fa).rethrow
+
   def demoTimeout() = timeout(IO("some operation").delayBy(600.millis), 1500.millis).dbg.silence
+  def demoGeneralTimeout() = generalTimeout(IO("some operation").delayBy(600.millis), 1500.millis).dbg.silence
 
 
-  def run: IO[Unit] = demoTimeout()
+  //def run: IO[Unit] = demoTimeout()
+  def run: IO[Unit] = demoGeneralTimeout()
 }
