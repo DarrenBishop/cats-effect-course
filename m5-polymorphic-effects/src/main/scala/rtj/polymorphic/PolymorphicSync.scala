@@ -45,5 +45,17 @@ object PolymorphicSync extends IOApp.Simple {
 
   val aDeferredIO = IO.defer(aDelayedIO)
 
+  /**
+   *  Exercise - write a polymorphic console
+   */
+  trait Console[F[_]] {
+    def println[A](a: A): F[Unit]
+    def readLine(): F[String]
+  }
+
+  object Console {
+    def apply[F[_]: Sync]: Console[F] = ???
+  }
+
   def run: IO[Unit] = ???
 }
